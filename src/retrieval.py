@@ -33,7 +33,16 @@ def _get_client():
             if _client is None:
                 from qdrant_client import QdrantClient
 
-                _client = QdrantClient(path=str(config.INDEX_DIR))
+                if config.QDRANT_URL:
+                    if not config.QDRANT_API_KEY:
+                        raise RuntimeError(
+                            "QDRANT_API_KEY is required when QDRANT_URL is set"
+                        )
+                    _client = QdrantClient(
+                        url=config.QDRANT_URL, api_key=config.QDRANT_API_KEY
+                    )
+                else:
+                    _client = QdrantClient(path=str(config.INDEX_DIR))
     return _client
 
 

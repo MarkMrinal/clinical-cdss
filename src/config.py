@@ -16,6 +16,8 @@ RESULTS_DIR = ROOT / "results"
 LOG_DIR = RESULTS_DIR / "execution_logs"
 CACHE_DIR = RESULTS_DIR / "llm_cache"
 INDEX_DIR = RAW_DIR / "qdrant_index"
+QDRANT_URL = os.getenv("QDRANT_URL", "").strip()
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "").strip()
 
 # --- Paper-reported settings -------------------------------------------------
 EMBED_MODEL = os.getenv(

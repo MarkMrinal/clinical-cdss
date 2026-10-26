@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import socket
 import threading
 import uuid
@@ -146,7 +147,8 @@ class DemoHTTPServer(ThreadingHTTPServer):
 
 def main() -> None:
     global LLM_MODULE_PATH
-    host, port = "127.0.0.1", 8765
+    host = os.getenv("HOST", "0.0.0.0" if os.getenv("PORT") else "127.0.0.1")
+    port = int(os.getenv("PORT", "8765"))
     print(f"Clinical CDSS case viewer: http://{host}:{port}")
     print("Free-text analysis uses the configured pipeline; saved demonstrations replay local logs.")
     import src.llm

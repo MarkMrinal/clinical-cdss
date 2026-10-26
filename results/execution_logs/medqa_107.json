@@ -1,0 +1,338 @@
+{
+ "case_id": "medqa_107",
+ "timestamp": "2026-10-26T16:36:22.936402+00:00",
+ "question": "A 29-year-old man comes in for evaluation of infertility. He has been trying to conceive for over 2 years with his wife and previous evaluation of his wife's fertility revealed no abnormalities. Physical exam reveals a tall man with long extremities, sparse body hair, gynecomastia, and small testes. Laboratory studies reveal increased serum follicle-stimulating hormone concentration and an increased estradiol:testosterone ratio. Genetic studies reveal a cytogenetic abnormality. If this abnormality was inherited from the patient's father, at which stage of spermatogenesis did this error most likely occur?",
+ "options": {
+  "A": "Primary spermatocyte",
+  "B": "Secondary spermatocyte",
+  "C": "Spermatid",
+  "D": "Spermatogonium",
+  "E": "Spermatozoon"
+ },
+ "mode": "full",
+ "parameters": {
+  "tau": 0.65,
+  "max_iters": 2,
+  "top_k": 5,
+  "embed_model": "pritamdeka/BioBERT-mnli-snli-scinli-scitail-mednli-stsb",
+  "llm": "gemini-flash-lite-latest"
+ },
+ "iterations": [
+  {
+   "iteration": 1,
+   "query": "infertility tall long extremities sparse body hair gynecomastia small testes increased follicle-stimulating hormone estradiol testosterone ratio cytogenetic abnormality spermatogenesis",
+   "n_passages": 5,
+   "passages": [
+    {
+     "chunk_id": "2703ab4f-84d5-5297-a423-f9834ea93b48",
+     "score": 0.5050396918855773,
+     "rrf": 0.01639,
+     "collections": [
+      "biomedical"
+     ],
+     "text": "MANAGEMENT OF ENDOCRINE DISEASE: Diagnosis and management of primary aldosteronism: the Endocrine Society guideline 2016 revisited.\n\nThe syndrome of primary aldosteronism (PA) is characterized by hypertension with excessive, autonomous aldosterone production and is usually caused by either a unilateral aldosterone-producing adenoma or bilateral adrenal hyperplasia.",
+     "title": "MANAGEMENT OF ENDOCRINE DISEASE: Diagnosis and management of primary aldosteronism: the Endocrine Society guideline 2016 revisited.",
+     "url": "https://pubmed.ncbi.nlm.nih.gov/29674485/",
+     "source": "European journal of endocrinology",
+     "topic": "hypertension diagnosis management",
+     "pmid": "29674485"
+    },
+    {
+     "chunk_id": "2711b343-bb7e-5b89-96de-67c69b72f2c0",
+     "score": 0.7000442942422552,
+     "rrf": 0.01639,
+     "collections": [
+      "textbooks"
+     ],
+     "text": "The complete form of androgen resistance or androgen insensitivity syndrome is the most dramatic example of resistance to hormone action by defects in the androgen receptor. Affected patients have a 46,XY karyotype, normally formed testes (usually located in the inguinal canal or labia majora), and female external genitalia with a short vagina and no internal müllerian structures. At the time of puberty, testosterone concentrations increase to normal or above normal male range. Because a portion of the testosterone is normally converted to estradiol in peripheral tissues and the estrogen cannot be opposed by the androgen, breast development ensues at the normal age of puberty without growth of pubic, facial, or axillary hair or the occurrence of menstruation.",
+     "title": "Pediatrics_Nelson",
+     "url": "https://huggingface.co/datasets/MedRAG/textbooks (Pediatrics_Nelson)",
+     "source": "Pediatrics_Nelson",
+     "topic": "textbook",
+     "pmid": "Pediatrics_Nelson_3719"
+    },
+    {
+     "chunk_id": "de28caf2-912c-58e9-a95a-d869f8fe2f67",
+     "score": 0.49976260864495115,
+     "rrf": 0.01613,
+     "collections": [
+      "biomedical"
+     ],
+     "text": "Syndrome of Inappropriate Antidiuresis and Diabetes Insipidus as Two Sides of the Same Coin in Hypothalamic Lymphoma: A Case Report.\n\nBACKGROUND: Hypothalamic-pituitary region lymphoma is rare and diabetes insipidus (DI) represents one of the most common endocrine manifestations. We report the first case of hypothalamic lymphoma associated with both the syndrome of inappropriate antidiuresis (SIAD) and DI.",
+     "title": "Syndrome of Inappropriate Antidiuresis and Diabetes Insipidus as Two Sides of the Same Coin in Hypothalamic Lymphoma: A Case Report.",
+     "url": "https://pubmed.ncbi.nlm.nih.gov/36424791/",
+     "source": "Endocrine, metabolic & immune disorders drug targets",
+     "topic": "electrolyte disorders hyponatremia",
+     "pmid": "36424791"
+    },
+    {
+     "chunk_id": "455d1b18-c9bf-5f97-ba64-9f4b2f786d4a",
+     "score": 0.6570823502612413,
+     "rrf": 0.01613,
+     "collections": [
+      "textbooks"
+     ],
+     "text": "Gonadal dysgenesis is a term typically used to describe abnormal development of the gonads, typically resulting in streak gonads. Gonadal dysgenesis is associated with high levels of LH and FSH because the gonad fails to produce the steroids and inhibin that would normally feed back to the pituitary gland to suppress pituitary production of LH and FSH. Karyotypic abnormalities are common in women with primary amenorrhea associated with gonadal failure (Table 30.1). In one series, approximately 30% of patients with primary amenorrhea had an associated karyotypic abnormality (3). Turner syndrome (45,X) and its variants represent the most common form of hypergonadotropic hypogonadism in women with primary amenorrhea.",
+     "title": "Gynecology_Novak",
+     "url": "https://huggingface.co/datasets/MedRAG/textbooks (Gynecology_Novak)",
+     "source": "Gynecology_Novak",
+     "topic": "textbook",
+     "pmid": "Gynecology_Novak_5264"
+    },
+    {
+     "chunk_id": "8b00921a-7a3f-50da-8a30-927dceb97e4f",
+     "score": 0.49376659608979656,
+     "rrf": 0.01587,
+     "collections": [
+      "biomedical"
+     ],
+     "text": "lins directed against TSH receptors in the fetal thyroid gland. This may lead to intrauterine growth retardation, craniosynostosis, preterm delivery, perinatal death, etc. Sonography and fetal blood sampling provide important information to detect fetuses at risk and allow intrauterine therapy. Furthermore prenatal diagnosis is important in case of maternal antithyroid drug ingestion possibly leading to fetal hypothyroidism and goitre.",
+     "title": "[Diagnosis and therapy of fetal thyroid gland dysfunction in primary maternal disease].",
+     "url": "https://pubmed.ncbi.nlm.nih.gov/9441555/",
+     "source": "Acta medica Austriaca",
+     "topic": "thyroid dysfunction diagnosis",
+     "pmid": "9441555"
+    }
+   ],
+   "n_hypotheses": 0,
+   "hypotheses": [],
+   "n_web_records": 0,
+   "web_records": [],
+   "web_queries": [],
+   "confidence": 0.4499,
+   "confidence_components": {
+    "retrieval_similarity": 0.5711,
+    "evidence_breadth": 1.0,
+    "web_support": 0.0,
+    "cross_source_agreement": 0.0
+   },
+   "stop_reason": "low_confidence_requery",
+   "feedback": {
+    "reason": "The previous query was a keyword dump that failed to retrieve external literature, resulting in zero web support and missing the specific underlying genetic diagnosis of Klinefelter syndrome (47,XXY) and its paternal meiotic non-disjunction mechanism.",
+    "focus": [
+     "Klinefelter syndrome paternal meiotic non-disjunction stage",
+     "meiosis I versus meiosis II paternal error in 47 XXY"
+    ],
+    "refined_query": "Klinefelter syndrome paternal meiotic non-disjunction meiosis I spermatogenesis error"
+   }
+  },
+  {
+   "iteration": 2,
+   "query": "Klinefelter syndrome paternal meiotic non-disjunction meiosis I spermatogenesis error",
+   "n_passages": 5,
+   "passages": [
+    {
+     "chunk_id": "62e88584-e139-50fd-a667-a6be1c6544dc",
+     "score": 0.4221736699249845,
+     "rrf": 0.01639,
+     "collections": [
+      "biomedical"
+     ],
+     "text": "n sulphur cluster synthesis and (iv) defects of iron recycling. A careful patient history and evaluation of laboratory tests may enable these rare conditions to be distinguished from the more common iron deficiency anaemia. Molecular studies allow distinction of the different types, a prerequisite for differentiated therapy.",
+     "title": "How I manage patients with atypical microcytic anaemia.",
+     "url": "https://pubmed.ncbi.nlm.nih.gov/23057559/",
+     "source": "British journal of haematology",
+     "topic": "anemia diagnosis",
+     "pmid": "23057559"
+    },
+    {
+     "chunk_id": "8ea6ff23-7345-5177-ac04-78185205b21d",
+     "score": 0.6514181784706006,
+     "rrf": 0.01639,
+     "collections": [
+      "textbooks"
+     ],
+     "text": "Available @ StudentConsult.com Occurring in 1 in 500 male births, KS is the most commongenetic cause of hypogonadism and infertility in men. It is causedby the presence of an extra X chromosome (47,XXY) (see Chapter 174). The extra X chromosome arises from a nondisjunctionin either the sperm or the egg. About 15% of boys with featuresof KS are found to be mosaic, with 46,XY/47,XXY mosaicismbeing the most common. Before puberty, boys with KS are phenotypically indistinguishable from the rest of the population. The diagnosis is often made when the boy is 15 or 16 years ofage. At that point, the finding of the progressive developmentof pubic and axillary hair in the presence of testes that remaininfantile in volume should alert the clinician to the disorder. Adolescents and young adults with KS tend to be tall, with longlimbs. During adolescence or adulthood, gynecomastia occurs.",
+     "title": "Pediatrics_Nelson",
+     "url": "https://huggingface.co/datasets/MedRAG/textbooks (Pediatrics_Nelson)",
+     "source": "Pediatrics_Nelson",
+     "topic": "textbook",
+     "pmid": "Pediatrics_Nelson_1016"
+    },
+    {
+     "chunk_id": "11a4efae-0f12-5489-a0b7-f4a8979ddb58",
+     "score": 0.4149084486010535,
+     "rrf": 0.01613,
+     "collections": [
+      "biomedical"
+     ],
+     "text": "[Microcytic and hypochromic anemias].\n\nIn the majority of cases, microcytosis is the result of impaired hemoglobin synthesis. Disorders of iron metabolism and protoporphyrin and heme synthesis, as well as impaired globin synthesis, lead to defective hemoglobin production and to the generation of microcytosis and microcytic anemia.",
+     "title": "[Microcytic and hypochromic anemias].",
+     "url": "https://pubmed.ncbi.nlm.nih.gov/15635879/",
+     "source": "Vnitrni lekarstvi",
+     "topic": "anemia diagnosis",
+     "pmid": "15635879"
+    },
+    {
+     "chunk_id": "009e45b2-bd98-5414-9d7a-9dd6998a9393",
+     "score": 0.6356442239372613,
+     "rrf": 0.01613,
+     "collections": [
+      "textbooks"
+     ],
+     "text": "Only rarely are patients with the Klinefelter syndrome fertile, and presumably such persons are mosaics with a large proportion of 46,XY cells. The sterility is due to impaired spermatogenesis, sometimes to the extent of total azoospermia. Histologic examination shows hyalinization of tubules, which appear as ghostlike structures on tissue section. By contrast, Leydig cells are prominent, as a result of either hyperplasia or an apparent increase related to loss of tubules. Although Klinefelter syndrome may be associated with mental retardation, the degree of intellectual impairment typically is mild, and in some cases, no deficit is detectable. The reduction in intelligence is correlated with the number of extra X chromosomes. Klinefelter syndrome is associated with a higher frequency of several disorders, including breast cancer (seen 20 times more commonly than in normal males), extragonadal germ-cell tumors, and autoimmune diseases such as systemic lupus erythematosus.",
+     "title": "Pathology_Robbins",
+     "url": "https://huggingface.co/datasets/MedRAG/textbooks (Pathology_Robbins)",
+     "source": "Pathology_Robbins",
+     "topic": "textbook",
+     "pmid": "Pathology_Robbins_1624"
+    },
+    {
+     "chunk_id": "313e9025-7d1d-5b06-aa84-b03d2461753a",
+     "score": 0.4146770313154369,
+     "rrf": 0.01587,
+     "collections": [
+      "biomedical"
+     ],
+     "text": "n increasingly utilized, with a high success rate of diagnosis. Accurate genetic diagnosis is important for determining specific therapeutic modalities, as well as for avoiding splenectomy when contraindicated. In addition, molecular diagnosis can allow for genetic counseling and prenatal diagnosis in severe cases. We suggest a work-up scheme for patients with congenital anemias, including early incorporation of targeted next-generation sequencing panels.",
+     "title": "Impact of Next-Generation Sequencing on the Diagnosis and Treatment of Congenital Anemias.",
+     "url": "https://pubmed.ncbi.nlm.nih.gov/32557003/",
+     "source": "Molecular diagnosis & therapy",
+     "topic": "anemia diagnosis",
+     "pmid": "32557003"
+    }
+   ],
+   "n_hypotheses": 1,
+   "hypotheses": [
+    "Klinefelter syndrome"
+   ],
+   "n_web_records": 4,
+   "web_records": [
+    {
+     "pmid": "15262106",
+     "title": "Klinefelter's syndrome.",
+     "abstract": "Klinefelter's syndrome is the most common genetic cause of human male infertility, but many cases remain undiagnosed because of substantial variation in clinical presentation and insufficient professional awareness of the syndrome itself. Early recognition and hormonal treatment of the disorder can substantially improve quality of life and prevent serious consequences. Testosterone replacement corrects symptoms of androgen deficiency but has no positive effect on infertility. However, nowadays patients with Klinefelter's syndrome, including the non-mosaic type, need no longer be considered irrevocably infertile, because intracytoplasmic sperm injection offers an opportunity for procreation even when there are no spermatozoa in the ejaculate. In a substantial number of azoospermic patients, spermatozoa can be extracted from testicular biopsy samples, and pregnancies and livebirths have been achieved. The frequency of sex chromosomal hyperploidy and autosomal aneuploidies is higher in spermatozoa from patients with Klinefelter's syndrome than in those from normal men. Thus, chromosomal errors might in some cases be transmitted to the offspring of men with this syndrome. The genetic implications of the fertilisation procedures, including pretransfer or prenatal genetic assessment, must be explained to patients and their partners.",
+     "journal": "Lancet (London, England)",
+     "year": "",
+     "url": "https://pubmed.ncbi.nlm.nih.gov/15262106/",
+     "pubtypes": [
+      "Journal Article",
+      "Research Support, Non-U.S. Gov't",
+      "Review"
+     ],
+     "evidence_level": 2,
+     "evidence_label": "review",
+     "query_used": "Klinefelter syndrome",
+     "condition": "Klinefelter syndrome",
+     "weight": 0.5
+    },
+    {
+     "pmid": "28691621",
+     "title": "Klinefelter syndrome.",
+     "abstract": "Klinefelter syndrome, affecting males, is a collection of characteristics that occurs as a result of two or more X chromosomes. The syndrome was named after Harry Klinefelter, an American endocrinologist, and is common - occurring in all races. It is thought that one male in every 500 live births is affected and the incidence is rising. However, this may be due to increasing awareness, reflective of the sophistication of the methods to diagnose.",
+     "journal": "Nursing children and young people",
+     "year": "2017",
+     "url": "https://pubmed.ncbi.nlm.nih.gov/28691621/",
+     "pubtypes": [
+      "Case Reports",
+      "Journal Article",
+      "Review"
+     ],
+     "evidence_level": 2,
+     "evidence_label": "review",
+     "query_used": "Klinefelter syndrome",
+     "condition": "Klinefelter syndrome",
+     "weight": 0.5
+    },
+    {
+     "pmid": "32506765",
+     "title": "The epidemiology of sex chromosome abnormalities.",
+     "abstract": "Sex chromosome abnormalities (SCAs) are characterized by gain or loss of entire sex chromosomes or parts of sex chromosomes with the best-known syndromes being Turner syndrome, Klinefelter syndrome, 47,XXX syndrome, and 47,XYY syndrome. Since these syndromes were first described more than 60 years ago, several papers have reported on diseases and health related problems, neurocognitive deficits, and social challenges among affected persons. However, the generally increased comorbidity burden with specific comorbidity patterns within and across syndromes as well as early death of affected persons was not recognized until the last couple of decades, where population-based epidemiological studies were undertaken. Moreover, these epidemiological studies provided knowledge of an association between SCAs and a negatively reduced socioeconomic status in terms of education, income, retirement, cohabitation with a partner and parenthood. This review is on the aspects of epidemiology in Turner, Klinefelter, 47,XXX and 47,XYY syndrome.",
+     "journal": "American journal of medical genetics. Part C, Seminars in medical genetics",
+     "year": "2020",
+     "url": "https://pubmed.ncbi.nlm.nih.gov/32506765/",
+     "pubtypes": [
+      "Journal Article",
+      "Research Support, Non-U.S. Gov't",
+      "Review"
+     ],
+     "evidence_level": 2,
+     "evidence_label": "review",
+     "query_used": "Klinefelter syndrome",
+     "condition": "Klinefelter syndrome",
+     "weight": 0.5
+    },
+    {
+     "pmid": "39806878",
+     "title": "Klinefelter Syndrome: A Review.",
+     "abstract": "BACKGROUND: Klinefelter syndrome (KS) is an uncommonly recognised condition typified by gynaecomastia, small testes and aspermatogenesis. It is caused by a supernumerary X chromosome, resulting in a 47 XXY karyotype. Since its first description, the phenotype of KS has evolved and there is a much greater appreciation of the subtle features of the condition. METHOD: In this review, we explore the phenotype of the KS with particular consideration to patients with pre-natal and early infancy diagnosis, given that this is becoming increasingly common. The current understanding of the genetic mechanisms of KS, caused by supernumerary X chromosome are explored and the genotype-phenotype correlation are discussed. RESULTS: The implications of the condition both in childhood and later development are explored in detail, with particular focus on social and educational implications. Potential treatments, with emphasis on preservation of fertility are discussed. We highlight the optimal therapeutic conditions in which fertility preservation is most likely to be achieved, compared to those which can be more challenging. Finally, we discuss the other health challenges which can be associated with KS. These include poor bone health, diabetes, cardiovascular complications, and malignancy. The challenges in managing these co-morbid conditions and most up-to-date management recommendations are also explored.",
+     "journal": "Clinical endocrinology",
+     "year": "2025",
+     "url": "https://pubmed.ncbi.nlm.nih.gov/39806878/",
+     "pubtypes": [
+      "Journal Article",
+      "Review"
+     ],
+     "evidence_level": 2,
+     "evidence_label": "review",
+     "query_used": "Klinefelter syndrome",
+     "condition": "Klinefelter syndrome",
+     "weight": 0.5
+    }
+   ],
+   "web_queries": [
+    "Klinefelter syndrome"
+   ],
+   "confidence": 0.8277,
+   "confidence_components": {
+    "retrieval_similarity": 0.5078,
+    "evidence_breadth": 1.0,
+    "web_support": 1.0,
+    "cross_source_agreement": 1.0
+   },
+   "stop_reason": "confidence_threshold_met"
+  }
+ ],
+ "clinical": {
+  "symptoms": [
+   "infertility",
+   "tall",
+   "long extremities",
+   "sparse body hair",
+   "gynecomastia",
+   "small testes"
+  ],
+  "duration": "over 2 years",
+  "severity": null,
+  "medications": [],
+  "test_results": [
+   "increased serum follicle-stimulating hormone concentration",
+   "increased estradiol:testosterone ratio",
+   "cytogenetic abnormality"
+  ],
+  "patient_age": "29-year-old",
+  "patient_sex": "male",
+  "key_concepts": [
+   "infertility",
+   "gynecomastia",
+   "small testes",
+   "elevated FSH",
+   "cytogenetic abnormality",
+   "spermatogenesis"
+  ],
+  "missing_information": [
+   "specific genetic diagnosis",
+   "exact FSH value",
+   "testosterone level",
+   "estradiol level",
+   "semen analysis results"
+  ],
+  "retrieval_query": "infertility tall long extremities sparse body hair gynecomastia small testes increased follicle-stimulating hormone estradiol testosterone ratio cytogenetic abnormality spermatogenesis"
+ },
+ "selected": {
+  "answer": "A",
+  "answer_text": "Primary spermatocyte",
+  "rationale": "Although the evidence does not explicitly address the stage of non-disjunction, clinical knowledge indicates that paternal meiosis I non-disjunction during the formation of primary spermatocytes is the most common mechanism for contributing an XY chromosome to a 47,XXY zygote.",
+  "mode": "full"
+ },
+ "confidence": 0.8277,
+ "confidence_components": {
+  "retrieval_similarity": 0.5078,
+  "evidence_breadth": 1.0,
+  "web_support": 1.0,
+  "cross_source_agreement": 1.0
+ },
+ "confidence_method": "0.35*retrieval_similarity + 0.25*evidence_breadth + 0.20*web_support + 0.20*cross_source_agreement (replication heuristic)",
+ "n_iterations": 2,
+ "latency_s": 16.9
+}

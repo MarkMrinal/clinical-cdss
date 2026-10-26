@@ -8,3 +8,8 @@ results/*
 !results/eval_medqa_20261026_223318.csv
 !results/eval_medqa_20261026_223318.json
 .dist/
+# Saved benchmark cases required by the hosted demo page
+!results/execution_logs/
+results/execution_logs/*
+!results/execution_logs/medqa_107.json
+!results/execution_logs/medqa_347.json

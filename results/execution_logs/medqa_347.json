@@ -1,0 +1,242 @@
+{
+ "case_id": "medqa_347",
+ "timestamp": "2026-10-26T17:12:02.091743+00:00",
+ "question": "A 66-year-old woman presents to her primary care provider with several days of left flank pain radiating to the abdomen and groin. The patient states that she has noticed a pink tinge to her urine as well. Of note, she has not had any fevers, but endorses several months of fatigue and constipation. The patient was previously healthy except for mild untreated hypertension. On exam, her temperature is 98.6°F (37.0°C), blood pressure is 130/84 mmHg, pulse is 76/min, and respirations are 12/min. On further workup, the patient is found to have calcium oxalate nephrolithiasis with hypercalciuria. Blood studies demonstrate increased parathyroid hormone (PTH) and hypercalcemia. Which of the following is the most likely cause?",
+ "options": {
+  "A": "Primary hyperparathyroidism",
+  "B": "Pseudohypoparathyroidism",
+  "C": "Pseudopseudohypoparathyroidism",
+  "D": "Secondary hyperparathyroidism",
+  "E": "Tertiary hyperparathyroidism"
+ },
+ "mode": "full",
+ "parameters": {
+  "tau": 0.65,
+  "max_iters": 3,
+  "top_k": 5,
+  "embed_model": "pritamdeka/BioBERT-mnli-snli-scinli-scitail-mednli-stsb",
+  "llm": "gemini-flash-lite-latest"
+ },
+ "iterations": [
+  {
+   "iteration": 1,
+   "query": "66 year old woman left flank pain hematuria calcium oxalate nephrolithiasis hypercalciuria increased parathyroid hormone hypercalcemia",
+   "n_passages": 5,
+   "passages": [
+    {
+     "chunk_id": "9ce80a05-0f06-579d-9ffc-5103657e3a34",
+     "score": 0.6134904546963049,
+     "rrf": 0.01639,
+     "collections": [
+      "biomedical"
+     ],
+     "text": "endocrine evaluation, especially in patients with hypertension. Hypercalcemia is frequently caused by hyperparathyroidism but may also be present in thyrotoxicosis, adrenal insufficiency or due to excessive intake of cholecalciferol or lithium. CONCLUSION: Electrolyte disturbances may serve as important clinical indicators and red flags of endocrine disorders. Early recognition and targeted diagnostic and therapeutic strategies are essential to prevent life-threatening complications.",
+     "title": "[An Endocrinological Perspective on Electrolyte Imbalances].",
+     "url": "https://pubmed.ncbi.nlm.nih.gov/40690933/",
+     "source": "Deutsche medizinische Wochenschrift (1946)",
+     "topic": "electrolyte disorders hyponatremia",
+     "pmid": "40690933"
+    },
+    {
+     "chunk_id": "1cc61435-5d0c-5f7e-9076-37eca23fff33",
+     "score": 0.6361235503269147,
+     "rrf": 0.01639,
+     "collections": [
+      "textbooks"
+     ],
+     "text": "Calcium oxalate/ calcium phosphate 83% The most common causes are idiopathic hypercalciuria and 1° hyperparathyroidism. Alkaline urine. Radiopaque. Hydration, dietary sodium and protein restriction, thiazide diuretic. Avoid ↓calcium intake (can lead to hyperoxaluria and an ↑ risk of osteoporosis). Struvite (Mg-NH4 -PO4) or “triple phosphate” 9% Associated with urease-producing organisms (e.g., Proteus). Form staghorn calculi. Alkaline urine. Radiopaque. Hydration; treat UTI if present; surgical removal of staghorn stone. Uric acid 7% Associated with gout, xanthine oxidase defciency, and high purine turnover states (e.g., chemotherapy). Acidic urine (pH < 5.5). Radiolucent. Hydration; alkalinize urine with citrate, which is converted to HCO3 – in the liver; dietary purine restriction and allopurinol. Cystine 1% Due to a defect in renal transport of certain amino acids (COLA—cystine, ornithine, lysine, and arginine). Hexagonal crystals. Radiopaque. Hydration, dietary sodium restriction,",
+     "title": "First_Aid_Step2",
+     "url": "https://huggingface.co/datasets/MedRAG/textbooks (First_Aid_Step2)",
+     "source": "First_Aid_Step2",
+     "topic": "textbook",
+     "pmid": "First_Aid_Step2_1138"
+    },
+    {
+     "chunk_id": "bdea8360-f3df-57b8-b20a-f967f4fb00ae",
+     "score": 0.5545748091137953,
+     "rrf": 0.01613,
+     "collections": [
+      "biomedical"
+     ],
+     "text": "ssociated with both proximal and distal renal tubular acidosis. Hypercalcemia associated with immune checkpoint inhibitors has led to some interesting observations, including immune checkpoint inhibitor-induced parathyroid hormone-related peptide production, sarcoid-like granulomas, and hyperprogression of the disease. Hypocalcemia and hyperphosphatemia may be seen with immune checkpoint inhibitor-induced tumor lysis syndrome.",
+     "title": "Electrolyte and Acid-Base Disorders Associated with Cancer Immunotherapy.",
+     "url": "https://pubmed.ncbi.nlm.nih.gov/35063968/",
+     "source": "Clinical journal of the American Society of Nephrology : CJASN",
+     "topic": "electrolyte disorders hyponatremia",
+     "pmid": "35063968"
+    },
+    {
+     "chunk_id": "e86f2fe4-834d-54d8-9a7a-611373f92f7c",
+     "score": 0.6224845539169971,
+     "rrf": 0.01613,
+     "collections": [
+      "textbooks"
+     ],
+     "text": "mechAnism Sensitizes Ca2+-sensing receptor (CaSR) in parathyroid gland to circulating Ca2+ • PTH. clinicAl Use 2° hyperparathyroidism in patients with CKD receiving hemodialysis, hypercalcemia in 1° hyperparathyroidism (if parathyroidectomy fails), or in parathyroid carcinoma. AdVerse eFFects Hypocalcemia. mechAnism Nonabsorbable phosphate binder that prevents phosphate absorption from the GI tract. clinicAl Use Hyperphosphatemia in CKD. AdVerse eFFects Hypophosphatemia, GI upset. “A good set of bowels is worth more to a man than any quantity of brains.” “Man should strive to have his intestines relaxed all the days of his life.” “All right, let’s not panic. I’ll make the money by selling one of my livers. I can get by with one.”",
+     "title": "First_Aid_Step1",
+     "url": "https://huggingface.co/datasets/MedRAG/textbooks (First_Aid_Step1)",
+     "source": "First_Aid_Step1",
+     "topic": "textbook",
+     "pmid": "First_Aid_Step1_382"
+    },
+    {
+     "chunk_id": "ea111ac2-1ec1-58d4-9c00-fdc963d8c999",
+     "score": 0.5409997393487693,
+     "rrf": 0.01587,
+     "collections": [
+      "biomedical"
+     ],
+     "text": "Pheochromocytoma with Takotsubo Syndrome and acute heart failure: a case report.\n\nBACKGROUND: Pheochromocytoma is a neuroendocrine tumor that can overproduce catecholamines. Heart failure and Takotsubo Syndrome (TTS) caused by excessive catecholamines are uncommon pheochromocytoma complications. CASE PRESENTATION: A 27-year-old woman was referred to our center for further preoperative assessment and adrenalectomy.",
+     "title": "Pheochromocytoma with Takotsubo Syndrome and acute heart failure: a case report.",
+     "url": "https://pubmed.ncbi.nlm.nih.gov/35932074/",
+     "source": "World journal of surgical oncology",
+     "topic": "chest pain dyspnea acute coronary syndrome",
+     "pmid": "35932074"
+    }
+   ],
+   "n_hypotheses": 1,
+   "hypotheses": [
+    "Primary hyperparathyroidism"
+   ],
+   "n_web_records": 4,
+   "web_records": [
+    {
+     "pmid": "23374743",
+     "title": "Medical management of primary hyperparathyroidism.",
+     "abstract": "Primary hyperparathyroidism (PHPT) is the most common cause of hypercalcemia in the outpatient population. It is diagnosed in most individuals in the Western world at an asymptomatic stage without signs or symptoms of parathyroid hormone (PTH) calcium excess. Nonspecific symptoms include weakness, malaise, fatigue, and possible mood disturbances, which may be present at the time of diagnosis. The diagnosis of PHPT is confirmed in the presence of hypercalcemia and a normal or elevated PTH level in the absence of conditions that mimic PHPT. Indications for surgery have recently been revised based on international consensus, and surgery is advised in the presence of significant hypercalcemia, impaired renal function, and osteoporosis and in individuals younger than 50yr. The classical complications of PHPT are skeletal fragility, nephrolithiasis, and nephrocalcinosis. Surgery is always appropriate in an individual with confirmed PHPT after excluding conditions that can mimic PHPT and in the absence of contraindications. Individuals with asymptomatic PHPT not meeting the guidelines for surgery or those with contraindications for surgery may be followed and considered for medical management. For those at an increased risk of fragility fracture, antiresorptive therapy may be considered with close monitoring of biochemical data and bone densitometry. Targeted therapy with a calcimimetic agent may be of value in lowering serum calcium and PTH. There are currently no fracture data for the medical options available, and prospective randomized controlled trials are required to confirm the effects of medical therapy on fracture risk reduction in those with asymptomatic PHPT.",
+     "journal": "Journal of clinical densitometry : the official journal of the International Society for Clinical Densitometry",
+     "year": "2013",
+     "url": "https://pubmed.ncbi.nlm.nih.gov/23374743/",
+     "pubtypes": [
+      "Journal Article",
+      "Review"
+     ],
+     "evidence_level": 2,
+     "evidence_label": "review",
+     "query_used": "Primary hyperparathyroidism hypercalcemia nephrolithiasis management AND guidelines",
+     "condition": "Primary hyperparathyroidism",
+     "weight": 0.5
+    },
+    {
+     "pmid": "27613721",
+     "title": "Primary hyperparathyroidism: review and recommendations on evaluation, diagnosis, and management. A Canadian and international consensus.",
+     "abstract": "The purpose of this review is to assess the most recent evidence in the management of primary hyperparathyroidism (PHPT) and provide updated recommendations for its evaluation, diagnosis and treatment. A Medline search of \"Hyperparathyroidism. Primary\" was conducted and the literature with the highest levels of evidence were reviewed and used to formulate recommendations. PHPT is a common endocrine disorder usually discovered by routine biochemical screening. PHPT is defined as hypercalcemia with increased or inappropriately normal plasma parathyroid hormone (PTH). It is most commonly seen after the age of 50 years, with women predominating by three to fourfold. In countries with routine multichannel screening, PHPT is identified earlier and may be asymptomatic. Where biochemical testing is not routine, PHPT is more likely to present with skeletal complications, or nephrolithiasis. Parathyroidectomy (PTx) is indicated for those with symptomatic disease. For asymptomatic patients, recent guidelines have recommended criteria for surgery, however PTx can also be considered in those who do not meet criteria, and prefer surgery. Non-surgical therapies are available when surgery is not appropriate. This review presents the current state of the art in the diagnosis and management of PHPT and updates the Canadian Position paper on PHPT. An overview of the impact of PHPT on the skeleton and other target organs is presented with international consensus. Differences in the international presentation of this condition are also summarized.",
+     "journal": "Osteoporosis international : a journal established as result of cooperation between the European Foundation for Osteoporosis and the National Osteoporosis Foundation of the USA",
+     "year": "2017",
+     "url": "https://pubmed.ncbi.nlm.nih.gov/27613721/",
+     "pubtypes": [
+      "Journal Article",
+      "Review",
+      "Research Support, Non-U.S. Gov't",
+      "Consensus Statement"
+     ],
+     "evidence_level": 2,
+     "evidence_label": "review",
+     "query_used": "Primary hyperparathyroidism hypercalcemia nephrolithiasis management AND guidelines",
+     "condition": "Primary hyperparathyroidism",
+     "weight": 0.5
+    },
+    {
+     "pmid": "30576424",
+     "title": "Mild primary hyperparathyroidism-to treat or not to treat?",
+     "abstract": "INTRODUCTION: The presentation of primary hyperparathyroidism (PHPT) has shifted from a disease characterized by renal and skeletal complications to a mild or asymptomatic condition. Modern imaging allows localization of a surgical target in the majority of cases. SOURCES OF DATA: Data were collected from literature searches of online databases including PUBMED, MEDLINE and Cochrane. A narrative review was performed. AREAS OF AGREEMENT: Parathyroidectomy is the only therapy with curative potential with good outcomes and low risk of complications in experienced hands. Current guidelines advocate that surgery is offered in all symptomatic cases and in those who meet criteria depending on age, serum calcium concentration, skeletal and renal parameters. A structured monitoring approach should be offered to those who do not undergo surgery. AREAS OF CONTROVERSY: Thresholds for intervention to improve skeletal and renal outcomes are debatable. In addition, controversy persists over the benefit of surgery for non-skeletal/renal outcomes. GROWING POINTS: The role of medical management of PHPT using agents such as bisphosphonates, denosumab and cinacalcet are discussed. AREAS TIMELY FOR DEVELOPING RESEARCH: In summary, further data on the natural history and effects of treatment of mild and asymptomatic PHPT are required to determine thresholds for surgery. In particular, further investigations of non-skeletal and non-renal parameters, such as neurocognitive quality of life and cardiovascular disease are required. Data on normocalcaemic PHPT are lacking. Large-scale randomized controlled trials would be welcome in these areas, however in view of the cost implications a more pragmatic approach may be to develop collaborative multi-centre registries.",
+     "journal": "British medical bulletin",
+     "year": "2019",
+     "url": "https://pubmed.ncbi.nlm.nih.gov/30576424/",
+     "pubtypes": [
+      "Journal Article",
+      "Review"
+     ],
+     "evidence_level": 2,
+     "evidence_label": "review",
+     "query_used": "Primary hyperparathyroidism hypercalcemia nephrolithiasis management AND guidelines",
+     "condition": "Primary hyperparathyroidism",
+     "weight": 0.5
+    },
+    {
+     "pmid": "34209340",
+     "title": "Primary Hyperparathyroidism in Pregnancy: Literature Review of the Diagnosis and Management.",
+     "abstract": "BACKGROUND: Parathyroid disease is uncommon in pregnancy. During pregnancy, multiple changes occur in the calcium regulating hormones which may make the diagnosis of primary hyperparathyroidism more challenging. Close monitoring of serum calcium during pregnancy is necessary in order to optimize maternal and fetal outcomes. In this review, we will describe the diagnosis and management of primary hyperparathyroidism during pregnancy. METHODS: We searched MEDLINE, CINAHL, EMBASE and Google scholar bases from 1 January 1990 to 31 December 2020. Case reports, case series, book chapters and clinical guidelines were included in this review. CONCLUSIONS: Medical management options for primary hyperparathyroidism during pregnancy are severely limited due to inadequate safety data with the various potential therapies available, and surgery is advised during the 2nd trimester of pregnancy in the presence of severe hypercalcemia (calcium adjusted for albumin greater than 3.0 mmol/L (12.0 mg/dL)). Hypercalcemia should be avoided during pregnancy in order to minimize maternal and fetal complications.",
+     "journal": "Journal of clinical medicine",
+     "year": "2021",
+     "url": "https://pubmed.ncbi.nlm.nih.gov/34209340/",
+     "pubtypes": [
+      "Journal Article",
+      "Review"
+     ],
+     "evidence_level": 2,
+     "evidence_label": "review",
+     "query_used": "Primary hyperparathyroidism hypercalcemia nephrolithiasis management AND guidelines",
+     "condition": "Primary hyperparathyroidism",
+     "weight": 0.5
+    }
+   ],
+   "web_queries": [
+    "Primary hyperparathyroidism hypercalcemia nephrolithiasis management AND guidelines"
+   ],
+   "confidence": 0.8577,
+   "confidence_components": {
+    "retrieval_similarity": 0.5935,
+    "evidence_breadth": 1.0,
+    "web_support": 1.0,
+    "cross_source_agreement": 1.0
+   },
+   "stop_reason": "confidence_threshold_met"
+  }
+ ],
+ "clinical": {
+  "symptoms": [
+   "left flank pain radiating to the abdomen and groin",
+   "pink tinge to her urine",
+   "no fevers",
+   "fatigue",
+   "constipation"
+  ],
+  "duration": "several days of left flank pain, several months of fatigue and constipation",
+  "severity": "not provided",
+  "medications": [],
+  "test_results": [
+   "temperature is 98.6°F (37.0°C)",
+   "blood pressure is 130/84 mmHg",
+   "pulse is 76/min",
+   "respirations is 12/min",
+   "calcium oxalate nephrolithiasis",
+   "hypercalciuria",
+   "increased parathyroid hormone (PTH)",
+   "hypercalcemia"
+  ],
+  "patient_age": "66-year-old",
+  "patient_sex": "woman",
+  "key_concepts": [
+   "left flank pain",
+   "hematuria",
+   "calcium oxalate nephrolithiasis",
+   "hypercalciuria",
+   "increased parathyroid hormone",
+   "hypercalcemia"
+  ],
+  "missing_information": [
+   "family history",
+   "social history",
+   "exact duration of hypertension",
+   "urinalysis microscopy details"
+  ],
+  "retrieval_query": "66 year old woman left flank pain hematuria calcium oxalate nephrolithiasis hypercalciuria increased parathyroid hormone hypercalcemia"
+ },
+ "selected": {
+  "answer": "A",
+  "answer_text": "Primary hyperparathyroidism",
+  "rationale": "The patient's presentation of hypercalcemia with elevated parathyroid hormone (PTH) levels and recurrent nephrolithiasis is classic for primary hyperparathyroidism.",
+  "mode": "full"
+ },
+ "confidence": 0.8577,
+ "confidence_components": {
+  "retrieval_similarity": 0.5935,
+  "evidence_breadth": 1.0,
+  "web_support": 1.0,
+  "cross_source_agreement": 1.0
+ },
+ "confidence_method": "0.35*retrieval_similarity + 0.25*evidence_breadth + 0.20*web_support + 0.20*cross_source_agreement (replication heuristic)",
+ "n_iterations": 1,
+ "latency_s": 78.7
+}

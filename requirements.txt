@@ -1,0 +1,11 @@
+torch
+transformers
+sentence-transformers
+qdrant-client
+datasets
+google-genai
+python-dotenv
+requests
+tqdm
+numpy
+pandas

@@ -1,0 +1,318 @@
+CLINICAL CDSS REPLICATION — PROGRESS PRESENTATION
+Slide-ready content for a 10–12 minute progress update
+============================================================
+
+Suggested length: 12 slides, about 10–12 minutes plus demo/Q&A.
+Use the slide bullets as visible content and the “Speaker notes” as your spoken
+explanation. Claims about project status below reflect the repository README
+and implementation; update them if you rerun evaluation before presenting.
+
+
+SLIDE 1 — TITLE
+---------------
+An Adaptive Multi-Agent Clinical Decision Support Prototype
+Biomedical RAG + PubMed Evidence + Iterative Refinement
+
+Progress update | [Course / Department] | [Team members] | [Date]
+
+Subtitle:
+An implementation study based on Öğdü, Arslanoğlu & Karaköse (IEEE Access,
+2025), with documented adaptations for a student prototype.
+
+Speaker notes:
+“We are building a research prototype inspired by the paper. Today we will
+show what has been implemented, compare it with the paper, report our early
+benchmark result, and identify what remains before the project is complete.”
+
+
+SLIDE 2 — PROBLEM, MOTIVATION & OBJECTIVES
+------------------------------------------
+Problem
+  • A language model can answer medical questions fluently while missing
+    relevant evidence, citing no sources, or failing to revisit weak results.
+  • A single answer is difficult to audit: what evidence was retrieved, what
+    disagreed, and why did the system stop?
+
+Project objective
+  Build and evaluate a prototype that:
+  1. Structures a free-text clinical case.
+  2. Retrieves biomedical and textbook passages.
+  3. Checks related PubMed literature.
+  4. Compares evidence and can refine retrieval when support is weak.
+  5. Shows a traceable result through a web interface.
+
+Scope statement
+  Research and education prototype; not a medical device and not for patient
+  care.
+
+Speaker notes:
+“Our goal is to reproduce the main workflow and study its behavior, not to
+claim that it is ready to make clinical decisions.”
+
+
+SLIDE 3 — BASE PAPER: WHAT THE AUTHORS PROPOSED
+-----------------------------------------------
+Base paper:
+Öğdü, Ç. U., Arslanoğlu, K., & Karaköse, M. (2025). “An Adaptive Multi-Agent
+LLM-Based Clinical Decision Support System Integrating Biomedical RAG and Web
+Intelligence.” IEEE Access, 13, 167390–167404.
+DOI: 10.1109/ACCESS.2025.3613340
+
+The paper describes:
+  • Five specialized roles arranged as a sequential workflow with feedback.
+  • Biomedical semantic retrieval using BioBERT embeddings and Qdrant.
+  • External web/literature evidence to complement the local corpus.
+  • Evidence fusion and an adaptive optimizer for low-confidence cases.
+  • A web prototype with free-text clinical input and an annotated report.
+  • A confidence threshold of 0.65 and up to three optimization cycles.
+
+Interpretation for our project:
+  We reproduce the workflow’s main ideas. We do not claim a bit-for-bit
+  replication of every model, corpus, search service, or orchestration detail.
+
+Speaker notes:
+“The paper is our architectural reference. Where its exact implementation or
+corpus details were unavailable or impractical, we chose an explicit and
+documented approximation.”
+
+
+SLIDE 4 — OUR WORKFLOW: FROM INPUT TO RESULT
+--------------------------------------------
+  Free-text case / saved benchmark question
+                    ↓
+  1. Clarifier: symptoms, duration, concepts, missing details, query
+                    ↓
+  2. RAG Analyzer: embed query → search local Qdrant → candidate hypotheses
+                    ↓
+  3. Evidence Scanner: search PubMed for relevant abstracts
+                    ↓
+  4. Fusion: compare sources → summarize support/conflicts → score heuristic
+                    ↓
+  Score ≥ 0.65? ─ Yes → final response and evidence report
+       │
+       No, cycles remain
+       ↓
+  5. Optimizer: refine retrieval focus → repeat retrieval/evidence/fusion
+
+Important detail:
+  Clarifier runs before the loop. The retrieval, evidence search, and fusion
+  run once per cycle. Final response generation happens after the loop.
+
+Speaker notes:
+“Python controls the sequence and loop. The user does not need to operate the
+agents separately.”
+
+
+SLIDE 5 — THE FIVE AGENT ROLES IN OUR IMPLEMENTATION
+----------------------------------------------------
+Role                 Responsibility in this project
+-------------------  -----------------------------------------------
+Clinical Clarifier   Converts input into structured case fields and query.
+RAG Analyzer         Retrieves passages and proposes passage-linked candidates.
+Evidence Scanner     Searches PubMed for abstracts related to the case/candidates.
+Clinical Fusion      Compares local and PubMed evidence; reports gaps/conflicts.
+Adaptive Optimizer   If score is low, proposes a refined query/focus for another cycle.
+
+What “agent” means here:
+  • Each role has its own prompt, input/output contract, and step in the flow.
+  • The same configured Gemini model is called separately for LLM tasks.
+  • Python orchestrates the calls; these are not five independent models or
+    five autonomous services.
+  • Embedding, vector search, PubMed retrieval, scoring, logging, and display
+    are performed by separate software components.
+
+Speaker notes:
+“We use five specialized roles with one underlying LLM. We are transparent
+that this is less model-diverse than the paper, which reports multiple models.”
+
+
+SLIDE 6 — DATA, CORPUS & BIOBERT
+-------------------------------
+Local retrieval index (Qdrant, embedded/local mode)
+  • Biomedical collection: about 2,800 PubMed abstracts; about 11,244 chunks.
+  • Textbooks collection: sampled passages from 18 books in the public MedRAG
+    textbook corpus; up to 780 passages per book; 13,691 indexed passages.
+  • Retrieval combines results across collections; top-k is 5 by default.
+
+Embedding model
+  `pritamdeka/BioBERT-mnli-snli-scinli-scitail-mednli-stsb`
+  • Encodes the query and passages into vectors for semantic similarity search.
+  • It retrieves relevant text; it does not generate the clinical answer.
+  • The project README records this model ID as matching the one named in the
+    base paper.
+
+Source distinction
+  • PubMed is an official NLM biomedical citation/abstract resource.
+  • MedRAG textbooks are a public research corpus, not an approved guideline set.
+  • Our corpus and live search sources are not identical to the paper’s full
+    corpus and broader web-intelligence setup.
+
+Speaker notes:
+“The paper does not provide a book list we could reproduce. We therefore used
+a public MedRAG textbook corpus and documented the sampling. PubMed abstracts
+are not the same thing as clinical guidelines.”
+
+
+SLIDE 7 — BENCHMARKS: WHAT WE FROZE AND WHY
+-------------------------------------------
+Dataset       Purpose / format                         Project status
+------------  ---------------------------------------  -------------------------
+MedQA         US medical exam-style MCQ                Evaluated: 20 questions
+PubMedQA      Research questions from PubMed abstracts Prepared/frozen; not run
+MedBullets    Medical exam questions                  Prepared/frozen; not run
+
+Why freeze samples?
+  • Same question IDs across baseline, RAG-only, and full-pipeline runs.
+  • Seed 42 makes the sampled set repeatable.
+  • Enables a fairer within-project comparison and audit of cases.
+  • “Frozen” refers to evaluation items; live free-text analysis remains open.
+
+Scope limitation:
+  The paper reports broader dataset evaluation. Our reported result is only the
+  20-question MedQA sample; do not imply the other datasets were evaluated.
+
+Speaker notes:
+“The saved demo answer choices are shown because those records are exam
+questions. A live user does not need to select a benchmark or provide options.”
+
+
+SLIDE 8 — PROTOTYPE & DEMONSTRATION
+-----------------------------------
+The web page demonstrates:
+  • Free-text input and an Analyze action.
+  • Structured summary: extracted symptoms, duration, and search concepts.
+  • Iteration trace: passages, hypotheses, PubMed records, and stop reason.
+  • Final generated response, experimental score, and traceable sources.
+
+Saved demonstrations
+  • `medqa_347`: normal workflow; one iteration meets threshold.
+  • `medqa_107`: adaptive workflow; first cycle is low, optimizer refines the
+    query, second cycle meets threshold.
+
+Live vs. replay
+  • Live free-text analysis calls the configured Gemini API and PubMed, then
+    writes a local audit log.
+  • Saved demonstrations replay existing logs and do not make API calls.
+
+Speaker notes:
+“A RAG candidate is not a confirmed diagnosis. In the live fever/nosebleed
+example, the candidate phrase describes a symptom/evidence topic; the generated
+response recommends evaluation and does not establish the cause.”
+
+
+SLIDE 9 — EARLY EVALUATION RESULTS
+----------------------------------
+Configuration       Correct / valid    Accuracy       Status
+------------------  -----------------  -------------  ------------------------
+Baseline LLM        17 / 20            85.0%          Complete
+RAG-only            17 / 20            85.0%          Complete
+Full pipeline       18 / 20            90.0%          Complete
+
+Evaluation setup
+  • 20 fixed MedQA questions; same sampled IDs for the three modes.
+  • Baseline: LLM without retrieval.
+  • RAG-only: local retrieval plus answer selection; no fusion/feedback loop.
+  • Full: Clarifier, RAG, PubMed, fusion, optimizer loop, final selection.
+
+Interpretation
+  • Full pipeline scored one question higher than baseline/RAG-only in this
+    small sample.
+  • This is a preliminary result, not evidence of statistical superiority.
+  • No clinical outcome or confidence-calibration evaluation has been done.
+
+Speaker notes:
+“The result supports continued investigation, but a 20-question sample is too
+small to make a strong general claim. We will report counts, not just percentages.”
+
+
+SLIDE 10 — BASE PAPER VS. OUR RECREATION
+---------------------------------------
+Component             Base paper describes               Our current work
+--------------------  ---------------------------------  ------------------------------
+Architecture          Five cooperating agent roles       Five prompt-defined roles
+LLMs                  Multiple role-specific models      One Gemini model for roles
+Orchestration         CrewAI / sequential feedback        Explicit Python pipeline
+Clarification         Normalize/extract; terminology map LLM structures fields;
+                                                           no SNOMED/ICD coding
+RAG                   BioBERT + Qdrant                   BioBERT-based model + local Qdrant
+Knowledge sources     Textbooks/guidelines/literature     MedRAG textbook sample + PubMed
+Web evidence          Broader web intelligence            NCBI PubMed E-utilities
+Confidence            Threshold 0.65; paper reports       Threshold 0.65; our own
+                      confidence approach                heuristic formula
+Adaptive cycles       Up to three                        Up to three (config default)
+Web experience        Single-page input and report        Local web demo; live + replay
+Evaluation            Paper’s wider evaluation            20-question MedQA run completed
+
+Key interpretation:
+  We recreated the core workflow and several named components, while adapting
+  model diversity, data sources, terminology coding, orchestration, and scoring.
+
+Speaker notes:
+“This table separates what the paper describes from what we actually built.
+The confidence formula is our design choice; we do not attribute its weights to
+the authors.”
+
+
+SLIDE 11 — LIMITATIONS & PLAN TO COMPLETE THE PROJECT
+-----------------------------------------------------
+Current limitations
+  • Only 20 MedQA questions evaluated; PubMedQA and MedBullets not yet run.
+  • One underlying Gemini model across roles; roles are prompt-separated, not
+    independent models.
+  • Confidence is an uncalibrated heuristic, not a probability.
+  • No clinical validation, clinician review, or patient-safety study.
+  • No SNOMED CT/ICD-10 coding; no exact recreation of the paper’s corpus or
+    wider web search; PubMed publication-type levels are simple rules.
+  • Live retrieval and LLM output can vary; external service availability affects
+    runtime.
+
+Next steps (prioritized)
+  1. Run and report MedBullets and PubMedQA with suitable dataset-specific
+     scoring; preserve failures and avoid unsupported paper comparisons.
+  2. Expand the MedQA sample and report per-case results plus uncertainty.
+  3. Evaluate retrieval quality and answer grounding separately from accuracy.
+  4. Review evidence classification, source quality, and confidence calibration.
+  5. Add clinician/expert review and structured terminology mapping if feasible.
+  6. Compare role-specific models and orchestration alternatives only if time
+     and resources allow.
+
+Speaker notes:
+“Our immediate completion work is evaluation and careful error analysis. Any
+clinical validation or deployment would require a separate, much more rigorous
+program.”
+
+
+SLIDE 12 — CONCLUSION & REFERENCES
+---------------------------------
+Progress summary
+  • An end-to-end local web prototype now supports both free-text analysis and
+    replay of saved benchmark cases.
+  • The five-role workflow links case structuring, biomedical retrieval,
+    PubMed evidence, fusion, and adaptive re-querying.
+  • The first 20-question MedQA comparison is complete: 85%, 85%, and 90% for
+    baseline, RAG-only, and full pipeline respectively.
+  • We have documented meaningful deviations and limitations; more evaluation
+    is required before making strong performance claims.
+
+References
+  1. Öğdü, Ç. U., Arslanoğlu, K., & Karaköse, M. (2025). An Adaptive
+     Multi-Agent LLM-Based Clinical Decision Support System Integrating
+     Biomedical RAG and Web Intelligence. IEEE Access, 13, 167390–167404.
+     https://doi.org/10.1109/ACCESS.2025.3613340
+  2. Xiong, G., Jin, Q., Lu, Z., & Zhang, A. (2024). Benchmarking
+     Retrieval-Augmented Generation for Medicine. Findings of ACL 2024,
+     6233–6251. https://aclanthology.org/2024.findings-acl.372/
+  3. Jin, Q., Dhingra, B., Liu, Z., Cohen, W. W., & Lu, X. (2019). PubMedQA:
+     A Dataset for Biomedical Research Question Answering. EMNLP-IJCNLP 2019.
+     https://aclanthology.org/D19-1259/
+  4. Jin, D. et al. (2021). What Disease does this Patient Have? A Large-scale
+     Open Domain Question Answering Dataset from Medical Exams.
+     https://arxiv.org/abs/2009.13081
+
+Closing line:
+“Our current result is a working research prototype and an initial benchmark
+comparison. The next stage is broader, more reliable evaluation—not a claim of
+clinical readiness.”
+
+============================================================
+END — PRESENTATION CONTENT

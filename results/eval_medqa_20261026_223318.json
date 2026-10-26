@@ -1,0 +1,58 @@
+{
+ "config": {
+  "dataset": "medqa",
+  "n": 20,
+  "modes": "baseline,rag,full",
+  "workers": 4
+ },
+ "run_config": {
+  "timestamp": "2026-10-26T22:33:18",
+  "dataset_file": "data\\samples\\medqa_sample.jsonl",
+  "dataset_sha256": "1b0e2aaecfb53efcf7d58c2e78d431d8c693ac65a00d10a7dfe540b880247342",
+  "n": 20,
+  "modes": [
+   "baseline",
+   "rag",
+   "full"
+  ],
+  "workers": 4,
+  "model": "gemini-flash-lite-latest",
+  "temperature": 0.0,
+  "embed_model": "pritamdeka/BioBERT-mnli-snli-scinli-scitail-mednli-stsb",
+  "tau": 0.65,
+  "theta": 0.8,
+  "max_iters": 2,
+  "top_k": 5,
+  "scanner_llm_query": false,
+  "python": "3.11.5"
+ },
+ "summary": {
+  "baseline": {
+   "n": 20,
+   "correct": 17,
+   "accuracy": 0.85,
+   "errors": 0,
+   "mean_confidence": null,
+   "mean_iterations": 0.0,
+   "mean_latency_s": 0.0
+  },
+  "rag": {
+   "n": 20,
+   "correct": 17,
+   "accuracy": 0.85,
+   "errors": 0,
+   "mean_confidence": null,
+   "mean_iterations": 1.0,
+   "mean_latency_s": 10.0
+  },
+  "full": {
+   "n": 20,
+   "correct": 18,
+   "accuracy": 0.9,
+   "errors": 0,
+   "mean_confidence": 0.7908,
+   "mean_iterations": 1.5,
+   "mean_latency_s": 13.0
+  }
+ }
+}

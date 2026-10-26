@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f5f1">
+  <title>Clinical Systems Lab — Evidence review</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f5f5f1;
+      --surface: #fff;
+      --surface-soft: #fafaf8;
+      --ink: #1c2927;
+      --muted: #66736f;
+      --line: #e3e8e3;
+      --green: #176a55;
+      --green-dark: #145541;
+      --green-pale: #e9f3ef;
+      --amber: #a86c24;
+      --amber-pale: #fbf2e6;
+      --red: #a04f46;
+      --shadow: 0 16px 42px rgba(30, 49, 43, .055);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font-size: 14px; line-height: 1.5; }
+    button { font: inherit; }
+    a { color: inherit; }
+    .topbar { height: 66px; background: rgba(255,255,255,.88); border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; padding: 0 34px; position: sticky; top: 0; z-index: 5; backdrop-filter: blur(12px); }
+    .brand { display: flex; align-items: center; gap: 11px; font-size: 13px; font-weight: 690; letter-spacing: -.02em; }
+    .brand-mark { width: 29px; height: 29px; display: grid; place-items: center; color: white; background: var(--green); border-radius: 8px; font-size: 17px; font-weight: 500; }
+    .brand-sub { color: #8a9691; font-size: 11px; font-weight: 500; margin-left: 2px; }
+    .top-meta { display: flex; align-items: center; gap: 16px; color: var(--muted); font-size: 12px; }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; background: #4b9a77; margin-right: 6px; }
+    .shell { max-width: 1440px; margin: 0 auto; display: grid; grid-template-columns: 242px minmax(0, 1fr); min-height: calc(100vh - 66px); }
+    aside { border-right: 1px solid var(--line); padding: 29px 16px 22px 24px; background: #f8f8f5; }
+    .aside-label { padding: 0 11px; color: #8a9691; text-transform: uppercase; letter-spacing: .105em; font-size: 10px; font-weight: 700; margin: 0 0 12px; }
+    .project-card { margin: 0 5px 28px; padding: 14px 13px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+    .project-title { font-weight: 650; font-size: 12px; letter-spacing: -.01em; }
+    .project-sub { color: var(--muted); font-size: 11px; margin-top: 3px; }
+    .case-list { display: grid; gap: 7px; }
+    .case-button { cursor: pointer; text-align: left; border: 1px solid transparent; color: var(--ink); border-radius: 9px; background: transparent; padding: 11px 10px; display: flex; gap: 10px; width: 100%; transition: background .15s, border-color .15s; }
+    .case-button:hover { background: #fff; border-color: var(--line); }
+    .case-button[aria-current="true"] { background: #fff; border-color: #d7e5dd; box-shadow: 0 2px 7px rgba(27, 68, 53, .045); }
+    .case-index { width: 25px; height: 25px; flex: none; display: grid; place-items: center; border-radius: 7px; background: #edf0ed; color: #60706a; font-size: 10px; font-weight: 700; }
+    .case-button[aria-current="true"] .case-index { background: var(--green-pale); color: var(--green); }
+    .case-name { display: block; font-size: 12px; font-weight: 650; line-height: 1.35; }
+    .case-type { display: block; margin-top: 3px; font-size: 10px; color: var(--muted); }
+    .aside-note { margin: 25px 8px 0; padding-top: 17px; border-top: 1px solid var(--line); color: #7c8783; font-size: 10px; line-height: 1.65; }
+    main { min-width: 0; padding: 32px clamp(22px, 4vw, 58px) 50px; }
+    .crumbs { font-size: 11px; color: #84908b; margin-bottom: 18px; }
+    .crumbs span { color: #bdc5c0; padding: 0 7px; }
+    .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 24px; }
+    h1 { margin: 0; font-size: clamp(25px, 3vw, 32px); letter-spacing: -.045em; font-weight: 660; line-height: 1.18; }
+    .page-subtitle { margin: 7px 0 0; color: var(--muted); font-size: 13px; }
+    .saved-badge { white-space: nowrap; border: 1px solid #dce5df; background: #fff; border-radius: 99px; color: #52625c; font-size: 10px; font-weight: 650; padding: 7px 10px; }
+    .saved-badge::before { content: ""; width: 6px; height: 6px; background: #7d9288; border-radius: 50%; display: inline-block; margin: 0 7px 1px 0; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 275px; align-items: start; gap: 19px; }
+    .main-column, .right-column { display: grid; gap: 17px; min-width: 0; }
+    .panel { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); }
+    .panel-head { padding: 17px 20px 13px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .eyebrow { color: #87928d; text-transform: uppercase; font-size: 9px; letter-spacing: .11em; font-weight: 750; }
+    .panel-title { margin: 4px 0 0; font-size: 14px; letter-spacing: -.015em; font-weight: 670; }
+    .question-panel { padding: 19px 21px 20px; }
+    .question-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    .case-tag { border-radius: 5px; color: var(--green); background: var(--green-pale); padding: 4px 7px; font-size: 9px; font-weight: 750; letter-spacing: .045em; text-transform: uppercase; }
+    .question-text { font-size: 14px; line-height: 1.7; color: #34423e; margin: 0; }
+    .options { margin: 16px 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 7px 10px; }
+    .option { font-size: 11px; padding: 8px 10px; border: 1px solid #edf0ed; border-radius: 7px; color: #65716d; }
+    .option strong { color: #3d4b46; margin-right: 7px; }
+    .option.correct { background: #f0f7f3; color: #315b48; border-color: #d4e6db; }
+    .option.correct strong { color: var(--green); }
+    .section-heading { display: flex; align-items: baseline; justify-content: space-between; padding: 0 2px; margin: 3px 0 -6px; }
+    .section-heading h2 { margin: 0; font-size: 15px; letter-spacing: -.02em; font-weight: 680; }
+    .section-heading span { color: var(--muted); font-size: 10px; }
+    .iteration { overflow: hidden; }
+    .iteration-head { padding: 14px 17px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #edf0ed; }
+    .iter-left { display: flex; align-items: center; gap: 10px; }
+    .iter-number { width: 25px; height: 25px; display: grid; place-items: center; background: #edf2ee; color: var(--green); font-weight: 750; font-size: 10px; border-radius: 50%; }
+    .iter-title { font-size: 12px; font-weight: 680; }
+    .iter-query { color: #818c87; font-size: 10px; margin-top: 2px; max-width: 620px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .confidence-small { color: #4a6258; font-size: 11px; font-weight: 700; }
+    .iter-body { padding: 16px 17px 18px; }
+    .trace-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+    .trace-stat { background: var(--surface-soft); border: 1px solid #edf0ed; border-radius: 8px; padding: 10px 11px; }
+    .trace-stat span { display: block; color: #8a9590; text-transform: uppercase; letter-spacing: .08em; font-size: 8px; font-weight: 750; }
+    .trace-stat strong { display: block; margin-top: 4px; font-size: 13px; font-weight: 680; }
+    .trace-stat em { font-style: normal; color: var(--muted); font-size: 9px; margin-left: 3px; font-weight: 500; }
+    .hypothesis { padding: 10px 12px; background: #f7faf8; border-left: 2px solid #83ad98; border-radius: 0 7px 7px 0; font-size: 11px; color: #52625c; }
+    .hypothesis strong { color: #28483c; font-weight: 680; }
+    .feedback { margin-top: 11px; border: 1px solid #f0dfc8; border-radius: 8px; background: #fffbf5; padding: 12px 13px; }
+    .feedback-label { color: var(--amber); font-size: 9px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+    .feedback p { color: #6c5942; font-size: 11px; margin: 5px 0 8px; line-height: 1.55; }
+    .query-chip { display: inline-block; color: #855d2f; background: #f8ecd9; border-radius: 5px; padding: 5px 7px; font-size: 10px; }
+    .stop-line { font-size: 10px; color: #65746d; margin-top: 13px; display: flex; align-items: center; gap: 7px; }
+    .stop-line::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #68a083; }
+    .source-panel { overflow: hidden; }
+    .source-tabs { display: flex; gap: 16px; border-bottom: 1px solid var(--line); padding: 0 20px; }
+    .source-tab { cursor: pointer; background: transparent; border: 0; padding: 0 0 11px; color: #7c8983; font-size: 11px; font-weight: 650; border-bottom: 2px solid transparent; }
+    .source-tab[aria-selected="true"] { color: var(--green); border-color: var(--green); }
+    .source-list { padding: 4px 19px 9px; }
+    .source-item { padding: 13px 0; border-bottom: 1px solid #eef0ed; }
+    .source-item:last-child { border-bottom: 0; }
+    .source-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+    .source-title { color: #283a34; text-decoration: none; font-size: 11px; font-weight: 680; line-height: 1.5; }
+    a.source-title:hover { color: var(--green); text-decoration: underline; text-underline-offset: 3px; }
+    .source-meta { color: #87918d; font-size: 9px; margin-top: 4px; }
+    .source-score { flex: none; font-size: 9px; color: #73817a; background: #f2f4f1; padding: 4px 6px; border-radius: 5px; }
+    .source-excerpt { color: #687570; font-size: 10px; line-height: 1.6; margin: 8px 0 0; }
+    .empty-sources { text-align: center; color: #89938e; padding: 28px 14px; font-size: 11px; }
+    .answer-panel { overflow: hidden; }
+    .answer-band { background: var(--green-dark); color: #fff; padding: 18px 18px 16px; }
+    .answer-band .eyebrow { color: #bbd5c9; }
+    .answer-label { font-size: 9px; color: #bad2c7; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; margin-top: 13px; }
+    .answer-title { font-size: 20px; letter-spacing: -.035em; line-height: 1.22; margin-top: 3px; font-weight: 670; }
+    .answer-rationale { color: #d7e8df; font-size: 10px; line-height: 1.65; margin: 9px 0 0; }
+    .answer-content { padding: 16px 17px 17px; }
+    .metric-head { display: flex; align-items: baseline; justify-content: space-between; }
+    .metric-head strong { font-size: 19px; letter-spacing: -.04em; }
+    .metric-head span { color: #82908a; font-size: 9px; }
+    .meter { height: 5px; background: #e8ede9; border-radius: 8px; margin: 9px 0 7px; overflow: hidden; }
+    .meter-fill { height: 100%; background: #57a27f; border-radius: inherit; transition: width .25s ease; }
+    .metric-caption { color: #7a8781; font-size: 9px; line-height: 1.5; }
+    .divider { height: 1px; background: #edf0ed; margin: 15px 0; }
+    .summary-heading { font-size: 10px; font-weight: 700; color: #465650; margin-bottom: 9px; }
+    .summary-row { display: flex; justify-content: space-between; gap: 10px; font-size: 10px; padding: 5px 0; }
+    .summary-row span { color: #84908a; }
+    .summary-row strong { color: #475650; font-weight: 600; text-align: right; }
+    .facts { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+    .fact { padding: 4px 6px; border: 1px solid #e7ece8; border-radius: 5px; color: #63716b; font-size: 9px; background: #fbfcfb; }
+    .notice { padding: 12px 13px; border: 1px solid #eadfc9; background: #fcf8ef; color: #766546; border-radius: 9px; font-size: 9px; line-height: 1.65; }
+    .notice strong { color: #755c31; }
+    .loading, .error-state { padding: 44px 20px; text-align: center; color: var(--muted); }
+    .spinner { display: inline-block; width: 17px; height: 17px; border: 2px solid #dbe7df; border-top-color: var(--green); border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -4px; margin-right: 7px; }
+    .mode-tabs { display: flex; gap: 5px; border-bottom: 1px solid var(--line); margin: -4px 0 20px; }
+    .mode-tab { cursor: pointer; border: 0; border-bottom: 2px solid transparent; padding: 10px 12px 11px; margin-bottom: -1px; color: #738079; background: transparent; font-size: 11px; font-weight: 650; }
+    .mode-tab[aria-selected="true"] { color: var(--green); border-color: var(--green); }
+    .compose-panel { padding: 21px; }
+    .compose-panel textarea { display: block; width: 100%; min-height: 172px; resize: vertical; border: 1px solid #dfe6e1; border-radius: 9px; outline: none; color: #33423c; background: #fcfdfb; padding: 14px 15px; font: inherit; font-size: 13px; line-height: 1.7; transition: border-color .15s, box-shadow .15s; }
+    .compose-panel textarea:focus { border-color: #76a68d; box-shadow: 0 0 0 3px rgba(54,127,91,.1); }
+    .compose-panel textarea::placeholder { color: #9aa49f; }
+    .compose-tools { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 13px; }
+    .sample-button { border: 0; background: none; color: var(--green); cursor: pointer; font-size: 10px; font-weight: 650; padding: 6px 0; }
+    .sample-button:hover { text-decoration: underline; text-underline-offset: 3px; }
+    .analyze-button { border: 1px solid var(--green-dark); color: #fff; background: var(--green-dark); border-radius: 7px; padding: 10px 14px; font-size: 11px; font-weight: 680; cursor: pointer; box-shadow: 0 2px 4px rgba(20,85,65,.12); transition: background .15s, transform .15s; }
+    .analyze-button:hover:not(:disabled) { background: #0f4939; transform: translateY(-1px); }
+    .analyze-button:disabled { opacity: .58; cursor: wait; }
+    .input-note { margin: 13px 0 0; color: #82908a; font-size: 9px; line-height: 1.6; }
+    .analysis-status { padding: 18px 19px; display: flex; align-items: flex-start; gap: 12px; }
+    .analysis-status strong { display: block; font-size: 12px; }
+    .analysis-status p { margin: 4px 0 0; color: var(--muted); font-size: 10px; line-height: 1.55; }
+    .result-heading { margin: 22px 0 12px; display: flex; justify-content: space-between; align-items: baseline; }
+    .result-heading h2 { margin: 0; font-size: 16px; letter-spacing: -.025em; }
+    .result-heading span { color: #78857f; font-size: 10px; }
+    .benchmark-options { margin-top: 15px; border-top: 1px solid #edf0ed; padding-top: 10px; }
+    .benchmark-options summary { cursor: pointer; color: #7a8781; font-size: 10px; font-weight: 650; }
+    .benchmark-options .options { margin-top: 10px; }
+    .section-divider { height: 1px; background: var(--line); margin: 19px 0; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    footer { max-width: 1440px; margin: 0 auto; padding: 0 34px 22px 277px; color: #89938e; font-size: 9px; }
+    @media (max-width: 1040px) { .layout { grid-template-columns: minmax(0,1fr) 250px; } main { padding-left: 26px; padding-right: 26px; } }
+    @media (max-width: 780px) { .shell { grid-template-columns: 1fr; } aside { border-right: 0; border-bottom: 1px solid var(--line); padding: 14px 18px; } .project-card, .aside-label, .aside-note { display: none; } .case-list { display: flex; } .case-button { max-width: 240px; } main { padding: 24px 17px 35px; } .layout { grid-template-columns: 1fr; } .right-column { grid-row: 1; } .answer-panel .answer-content { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 18px; } .answer-band { grid-column: 1 / -1; } .divider { display: none; } footer { padding: 0 18px 18px; } .topbar { padding: 0 17px; } }
+    @media (max-width: 520px) { .top-meta .mode-label { display: none; } .page-head { align-items: flex-start; flex-direction: column; gap: 11px; } .options { grid-template-columns: 1fr; } .trace-grid { grid-template-columns: 1fr 1fr; } .answer-panel .answer-content { display: block; } .divider { display: block; } .iter-query { max-width: 180px; } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">+</span><span>Clinical Systems Lab <span class="brand-sub">/ research prototype</span></span></div>
+    <div class="top-meta"><span><i class="status-dot"></i><span class="mode-label">Local demonstration</span></span><span>v0.1</span></div>
+  </header>
+  <div class="shell">
+    <aside aria-label="Demo cases">
+      <div class="project-card"><div class="project-title">Adaptive clinical CDSS</div><div class="project-sub">Evidence review workspace</div></div>
+      <p class="aside-label">Saved demonstrations</p>
+      <nav class="case-list" id="case-list">
+        <button class="case-button" data-case="medqa_347" aria-current="true"><span class="case-index">01</span><span><span class="case-name">Single-pass retrieval</span><span class="case-type">medqa_347 · 1 iteration</span></span></button>
+        <button class="case-button" data-case="medqa_107" aria-current="false"><span class="case-index">02</span><span><span class="case-name">Adaptive re-query</span><span class="case-type">medqa_107 · 2 iterations</span></span></button>
+      </nav>
+      <div class="aside-note">These are saved benchmark runs for a research presentation. Selecting a case replays its audit log; it does not start a new analysis.</div>
+    </aside>
+    <main>
+      <div class="crumbs">Workspace <span>/</span> Clinical case review</div>
+      <div class="page-head"><div><h1>Clinical case review</h1><p class="page-subtitle">Describe a case in your own words, then inspect how the evidence was assembled.</p></div><div class="saved-badge">Research prototype</div></div>
+      <div class="mode-tabs" role="tablist"><button class="mode-tab" id="live-tab" role="tab" aria-selected="true">New analysis</button><button class="mode-tab" id="saved-tab" role="tab" aria-selected="false">Saved demonstrations</button></div>
+      <section id="live-view"><form class="panel compose-panel" id="case-form"><div class="eyebrow">Clinical input</div><div class="panel-title" style="margin:5px 0 13px">What is the patient experiencing?</div><textarea id="case-input" name="question" maxlength="16000" placeholder="Describe symptoms, relevant history, medications, and test results…" required></textarea><div class="compose-tools"><button type="button" class="sample-button" id="sample-button">↳ Load a fictional example</button><button class="analyze-button" id="analyze-button" type="submit">Analyze case <span aria-hidden="true">→</span></button></div><p class="input-note">Use fictional, non-identifiable cases for this research demo. A live analysis sends the text to the configured Gemini service and searches PubMed. It may take a few minutes.</p></form><div id="analysis-status" style="display:none;margin-top:14px" class="panel analysis-status" role="status" aria-live="polite"></div><div id="live-result" style="display:none"></div></section>
+      <section id="saved-view" hidden><div class="crumbs" style="margin-top:-5px">Saved benchmark run <span>/</span> <b id="crumb-case">medqa_347</b></div><div id="content" class="loading"><span class="spinner"></span>Loading saved case…</div></section>
+    </main>
+  </div>
+  <footer>Research and education prototype · Not validated for clinical use · Confidence is an experimental heuristic, not a probability of correctness.</footer>
+  <script>
+    const content = document.getElementById('content');
+    const buttons = [...document.querySelectorAll('.case-button')];
+    const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const shortText = (s, n=330) => { const t = String(s || '').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0,n).replace(/\s+\S*$/, '') + '…' : t; };
+    const pct = n => `${Math.round((Number(n)||0)*100)}%`;
+
+    function renderCase(d) {
+      const selected = d.selected || {};
+      const clinical = d.clinical || {};
+      const iterations = d.iterations || [];
+      const confidence = Number(d.confidence) || 0;
+      const options = d.options || {};
+      const answer = selected.answer || '';
+      document.getElementById('crumb-case').textContent = d.case_id;
+      const optionMarkup = Object.entries(options).map(([key, value]) => `<li class="option ${key === answer ? 'correct' : ''}"><strong>${escapeHtml(key)}</strong>${escapeHtml(value)}</li>`).join('');
+      const iterationMarkup = iterations.map((it, idx) => {
+        const hyps = (it.hypotheses || []).length ? (it.hypotheses || []).map(escapeHtml).join(', ') : 'No evidence-backed hypothesis';
+        const feedback = it.feedback ? `<div class="feedback"><div class="feedback-label">Optimizer · query refinement</div><p>${escapeHtml(it.feedback.reason || 'Evidence was below the acceptance threshold; the search was refined.')}</p><span class="query-chip">↳ ${escapeHtml(it.feedback.refined_query || '')}</span></div>` : '';
+        return `<article class="panel iteration"><div class="iteration-head"><div class="iter-left"><span class="iter-number">${idx+1}</span><div><div class="iter-title">Iteration ${idx+1}</div><div class="iter-query" title="${escapeHtml(it.query || '')}">${escapeHtml(it.query || 'No query recorded')}</div></div></div><span class="confidence-small">${Number(it.confidence || 0).toFixed(4)} confidence</span></div><div class="iter-body"><div class="trace-grid"><div class="trace-stat"><span>RAG passages</span><strong>${it.n_passages ?? (it.passages||[]).length}<em>retrieved</em></strong></div><div class="trace-stat"><span>Supported hypotheses</span><strong>${(it.hypotheses||[]).length}<em>identified</em></strong></div><div class="trace-stat"><span>PubMed records</span><strong>${it.n_web_records ?? (it.web_records||[]).length}<em>found</em></strong></div></div><div class="hypothesis"><strong>RAG candidate · not a diagnosis:</strong> ${hyps}</div>${feedback}<div class="stop-line">${it.stop_reason === 'confidence_threshold_met' ? 'Threshold met · analysis stopped' : it.stop_reason === 'low_confidence_requery' ? 'Below threshold · optimizer initiated another pass' : 'Iteration limit reached'}</div></div></article>`;
+      }).join('');
+      const target = arguments[1] || content;
+      const isSaved = arguments[2] !== false;
+      target.className = '';
+      target.innerHTML = `<div class="layout"><div class="main-column">
+        <section class="panel question-panel"><div class="question-top"><span class="case-tag">${isSaved ? `${escapeHtml(d.case_id)} · Benchmark replay` : 'Live analysis'}</span><span class="eyebrow">${isSaved && options ? 'Original benchmark prompt' : 'Clinical input'}</span></div><p class="question-text">${escapeHtml(d.question)}</p>${optionMarkup ? `<details class="benchmark-options"><summary>Show original benchmark answer choices</summary><ul class="options">${optionMarkup}</ul></details>` : ''}</section>
+        <section><div class="section-heading"><h2>Analysis trace</h2><span>${iterations.length} ${iterations.length === 1 ? 'iteration' : 'iterations'} recorded</span></div><div style="display:grid;gap:12px;margin-top:14px">${iterationMarkup}</div></section>
+        <section class="panel source-panel"><div class="panel-head"><div><div class="eyebrow">Traceable sources</div><div class="panel-title">Evidence inspected</div></div></div><div class="source-tabs" role="tablist"><button class="source-tab" role="tab" aria-selected="true" data-source="rag">Biomedical RAG <span id="rag-count"></span></button><button class="source-tab" role="tab" aria-selected="false" data-source="pubmed">PubMed <span id="pubmed-count"></span></button></div><div class="source-list" id="source-list"></div></section>
+      </div><div class="right-column">
+        <section class="panel answer-panel"><div class="answer-band"><div class="eyebrow">${answer ? 'Final benchmark answer' : 'Generated response'}</div><div class="answer-label">${answer ? `Selected option ${escapeHtml(answer)}` : 'Suggested next step'}</div><div class="answer-title">${escapeHtml(selected.answer_text || 'No final answer recorded')}</div><p class="answer-rationale">${escapeHtml(selected.rationale || '')}</p></div><div class="answer-content"><div><div class="metric-head"><strong>${confidence.toFixed(4)}</strong><span>confidence score</span></div><div class="meter"><div class="meter-fill" style="width:${Math.min(100, confidence*100)}%"></div></div><div class="metric-caption">Experimental heuristic · threshold ${escapeHtml(d.parameters?.tau ?? '0.65')}</div></div><div class="divider"></div><div><div class="summary-heading">Structured summary</div><div class="summary-row"><span>Patient</span><strong>${escapeHtml([clinical.patient_age, clinical.patient_sex].filter(Boolean).join(' · ') || 'Not specified')}</strong></div><div class="summary-row"><span>Duration</span><strong>${escapeHtml(clinical.duration || 'Not specified')}</strong></div><div class="summary-heading" style="margin-top:12px">Reported symptoms</div><div class="facts">${(clinical.symptoms||[]).map(x=>`<span class="fact">${escapeHtml(x)}</span>`).join('') || '<span class="fact">None recorded</span>'}</div><div class="summary-heading" style="margin-top:12px">Key concepts</div><div class="facts">${(clinical.key_concepts||[]).map(x=>`<span class="fact">${escapeHtml(x)}</span>`).join('') || '<span class="fact">None recorded</span>'}</div></div></div></section>
+        <div class="notice"><strong>Interpret with care.</strong> ${isSaved ? 'This is a replay of a benchmark run.' : 'This is an experimental, single-case analysis.'} The system is for research and education, not patient care. Its confidence score is not a probability.</div>
+      </div></div>`;
+      const allIterations = iterations;
+      const rag = allIterations.flatMap(it => it.passages || []);
+      const web = allIterations.flatMap(it => it.web_records || []);
+      document.getElementById('rag-count').textContent = `(${rag.length})`;
+      document.getElementById('pubmed-count').textContent = `(${web.length})`;
+      function showSources(which) {
+        document.querySelectorAll('.source-tab').forEach(tab => tab.setAttribute('aria-selected', String(tab.dataset.source === which)));
+        const items = which === 'rag' ? rag : web;
+        const list = document.getElementById('source-list');
+        if (!items.length) { list.innerHTML = `<div class="empty-sources">No ${which === 'rag' ? 'retrieved passages' : 'PubMed records'} in this case iteration.</div>`; return; }
+        list.innerHTML = items.map((item, i) => {
+          const isWeb = which === 'pubmed';
+          const title = item.title || item.source || 'Untitled source';
+          const href = isWeb && item.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${encodeURIComponent(item.pmid)}/` : (item.url || '');
+          const titleEl = href ? `<a class="source-title" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(title)} ↗</a>` : `<span class="source-title">${escapeHtml(title)}</span>`;
+          const meta = isWeb ? `${item.journal || 'PubMed'} · ${item.year || 'Year unavailable'} · PMID ${item.pmid || '—'} · ${item.evidence_label || 'evidence type not classified'}` : `${item.source || item.journal || 'Textbook / biomedical corpus'}${item.pmid ? ` · PMID ${item.pmid}` : ''}${item.collections?.length ? ` · ${item.collections.join(', ')}` : ''}`;
+          const excerpt = item.abstract || item.text || '';
+          const score = isWeb ? `Level ${item.evidence_level ?? '—'}` : `Score ${(Number(item.score)||0).toFixed(3)}`;
+          return `<article class="source-item"><div class="source-top"><div>${titleEl}<div class="source-meta">${escapeHtml(meta)}</div></div><span class="source-score">${escapeHtml(score)}</span></div><p class="source-excerpt">${escapeHtml(shortText(excerpt, 280))}</p></article>`;
+        }).join('');
+      }
+      showSources('rag');
+      document.querySelectorAll('.source-tab').forEach(tab => tab.addEventListener('click', () => showSources(tab.dataset.source)));
+    }
+
+    const liveView = document.getElementById('live-view');
+    const savedView = document.getElementById('saved-view');
+    const liveTab = document.getElementById('live-tab');
+    const savedTab = document.getElementById('saved-tab');
+    const statusBox = document.getElementById('analysis-status');
+    const liveResult = document.getElementById('live-result');
+    const form = document.getElementById('case-form');
+    const analyzeButton = document.getElementById('analyze-button');
+    const exampleText = 'A 66-year-old woman has had fatigue and constipation for several months and recently developed flank pain with a kidney stone. Tests show high calcium and elevated parathyroid hormone. What conditions could explain these findings?';
+
+    function setMode(mode) {
+      const showingSaved = mode === 'saved';
+      liveView.hidden = showingSaved;
+      savedView.hidden = !showingSaved;
+      liveTab.setAttribute('aria-selected', String(!showingSaved));
+      savedTab.setAttribute('aria-selected', String(showingSaved));
+      if (!showingSaved) buttons.forEach(b => b.setAttribute('aria-current', 'false'));
+    }
+    async function loadCase(id) {
+      setMode('saved');
+      content.className = 'loading';
+      content.innerHTML = '<span class="spinner"></span>Loading saved case…';
+      buttons.forEach(b => b.setAttribute('aria-current', String(b.dataset.case === id)));
+      try {
+        const response = await fetch(`/api/cases/${encodeURIComponent(id)}`);
+        if (!response.ok) throw new Error((await response.json()).error || `HTTP ${response.status}`);
+        renderCase(await response.json(), content, true);
+      } catch (error) {
+        content.className = 'panel error-state';
+        content.textContent = `Could not load this saved case. ${error.message}`;
+      }
+    }
+    async function waitForJob(jobId) {
+      for (;;) {
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        const response = await fetch(`/api/jobs/${encodeURIComponent(jobId)}`);
+        const job = await response.json();
+        if (!response.ok) throw new Error(job.error || `HTTP ${response.status}`);
+        if (job.status === 'complete') return job.result;
+        if (job.status === 'error') throw new Error(job.error || 'Analysis failed.');
+        statusBox.innerHTML = '<span class="spinner"></span><div><strong>Analysis in progress</strong><p>The full pipeline is working through retrieval, evidence review, and synthesis. Its steps will appear below when this run completes.</p></div>';
+      }
+    }
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      const question = document.getElementById('case-input').value.trim();
+      if (question.length < 20) return;
+      setMode('live');
+      liveResult.style.display = 'none';
+      statusBox.style.display = 'flex';
+      statusBox.className = 'panel analysis-status';
+      statusBox.innerHTML = '<span class="spinner"></span><div><strong>Starting analysis</strong><p>Your case is being sent to the existing full pipeline. No answer choices are needed.</p></div>';
+      analyzeButton.disabled = true;
+      analyzeButton.innerHTML = 'Analyzing <span aria-hidden="true">…</span>';
+      try {
+        const response = await fetch('/api/analyze', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({question})});
+        const start = await response.json();
+        if (!response.ok) throw new Error(start.error || `HTTP ${response.status}`);
+        const result = await waitForJob(start.job_id);
+        statusBox.style.display = 'none';
+        liveResult.style.display = 'block';
+        liveResult.innerHTML = '<div class="result-heading"><h2>Assessment and evidence</h2><span>Live run · audit log saved locally</span></div><div id="live-result-body"></div>';
+        renderCase(result, document.getElementById('live-result-body'), false);
+        liveResult.scrollIntoView({behavior:'smooth', block:'start'});
+      } catch (error) {
+        statusBox.className = 'panel analysis-status error-state';
+        statusBox.innerHTML = `<div><strong>Analysis could not be completed</strong><p>${escapeHtml(error.message)}</p><p>Check internet access and firewall rules for Gemini, then confirm the local index is available. No assessment was produced.</p></div>`;
+      } finally {
+        analyzeButton.disabled = false;
+        analyzeButton.innerHTML = 'Analyze case <span aria-hidden="true">→</span>';
+      }
+    });
+    document.getElementById('sample-button').addEventListener('click', () => { document.getElementById('case-input').value = exampleText; document.getElementById('case-input').focus(); });
+    liveTab.addEventListener('click', () => setMode('live'));
+    savedTab.addEventListener('click', () => { setMode('saved'); if (!content.dataset.loaded) loadCase('medqa_347'); });
+    buttons.forEach(button => button.addEventListener('click', () => { content.dataset.loaded = 'true'; loadCase(button.dataset.case); }));
+  </script>
+</body>
+</html>

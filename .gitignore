@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.pyc
+data/raw/qdrant_index/
+data/raw/pubmed_abstracts.jsonl
+results/llm_cache/
+results/*
+!results/eval_medqa_20261026_223318.csv
+!results/eval_medqa_20261026_223318.json
+.dist/

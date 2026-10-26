@@ -1,0 +1,402 @@
+CLINICAL CDSS REPLICATION
+PRESENTATION QUESTIONS & ANSWERS
+============================================================
+
+Purpose of this guide
+---------------------
+This document explains what the prototype actually does, how it relates to the
+base paper, and where our implementation differs. Use the “What we can say”
+sentences during the presentation. They are deliberately precise: this is a
+research and education prototype, not a clinically validated decision system.
+
+
+THE SHORT VERSION — ABOUT 30 SECONDS
+-----------------------------------
+“A free-text case is first structured by a Clarifier role. The system then uses
+a BioBERT-based embedding model to find relevant passages in a local Qdrant
+index, asks an LLM role to form evidence-linked candidate hypotheses, searches
+PubMed for related abstracts, and compares the two evidence streams. A
+transparent project-specific confidence heuristic determines whether the
+optimizer asks the retrieval stages to try a refined query, up to three cycles.
+Python coordinates the stages; the same Gemini model is called separately for
+the LLM tasks. This follows the paper’s five-role architecture, but it is our
+own implementation and is not clinically validated.”
+
+
+1. WHY DOES THE PAGE SHOW “SHOW ORIGINAL BENCHMARK ANSWER CHOICES”?
+-------------------------------------------------------------------
+Those choices belong to saved exam questions, not to a live patient chat. A
+benchmark is a fixed collection of questions and known answers used to compare
+systems consistently. Our project has frozen samples from:
+
+  • MedQA: US medical licensing-style multiple-choice questions.
+  • PubMedQA: questions answered using biomedical research abstracts; its
+    common form asks for yes/no/maybe and a supporting answer.
+  • MedBullets: medical exam questions, including multiple-choice items in the
+    sample we prepared.
+
+We froze a seeded sample (seed 42) and kept its question IDs so baseline,
+RAG-only, and full-pipeline runs use the same items. “Frozen” means the
+evaluation sample is fixed and reproducible; it does not mean live users must
+choose from those questions. The original answer choices are shown only when
+replaying a benchmark example, so the audience can see the exam question as it
+was posed. The live analysis box accepts free text and does not require options.
+
+Our completed evaluation was 20 MedQA questions: baseline 17/20 (85%), RAG-only
+17/20 (85%), full pipeline 18/20 (90%). PubMedQA and MedBullets were prepared
+but not evaluated. With only 20 items, the one-answer difference is preliminary
+and does not establish statistical superiority.
+
+What we can say:
+“The collapsed choices are part of the saved MedQA benchmark record. They are
+there for transparency when replaying an exam case; the live demo is free text.”
+
+
+2. WHAT HAPPENS IN EACH ITERATION? WHAT ARE THE COUNTS?
+------------------------------------------------------
+One full iteration has these steps:
+
+  1) The RAG Analyzer embeds the current retrieval query and searches the local
+     Qdrant collections for relevant text passages.
+  2) The LLM is asked to suggest candidate conditions/hypotheses grounded in
+     those passages. Unsupported candidates are intended to be discarded.
+  3) The Evidence Scanner searches PubMed for abstracts relevant to the
+     candidate hypotheses and the structured case.
+  4) The Fusion role compares the local passages and PubMed records, describes
+     agreement, conflicts, and evidence gaps, and calculates the project’s
+     confidence heuristic.
+  5) If confidence is below 0.65 and another cycle is allowed, the Optimizer
+     proposes a more focused query. The next cycle repeats retrieval, candidate
+     generation, PubMed search, and fusion using that query/focus.
+
+The Clarifier runs once before the loop. It creates the initial structured
+case and retrieval query. The optimizer updates the query and focus; it does
+not ask the user to re-enter the case.
+
+“RAG passages” are snippets of source text retrieved from our local index. RAG
+means retrieval-augmented generation: retrieve relevant material, then give it
+to a language model as context. The passages are not themselves diagnoses.
+
+“Supported hypotheses” are candidate conditions the RAG Analyzer produced and
+linked to retrieved passages. “Supported” means supported by that retrieval
+stage according to the program’s prompt and checks; it does not mean confirmed
+or clinically proven. The Fusion stage separately checks whether PubMed results
+also appear to support candidates.
+
+“PubMed records” are literature records fetched from NCBI PubMed, including
+title, abstract, publication details, PMID, and URL when available. They are
+research references, not necessarily guidelines or evidence that applies to a
+particular patient.
+
+The interface’s count is the number of items returned for that stage in that
+iteration. It does not represent a probability or a quality rating. Depending
+on the view/log, a displayed count can be for retrieved passages, hypotheses,
+or PubMed records; describe the label shown rather than treating these counts
+as interchangeable.
+
+
+3. WHERE DOES THE CLARIFIER AGENT APPEAR?
+----------------------------------------
+The Clarifier converts the original free text into structured fields. In the
+result page, “Reported symptoms” mainly displays the symptoms extracted from
+that structure. “Key concepts” displays search concepts intended to guide
+retrieval. Other fields can include duration, severity, medications, tests,
+age/sex if supplied, missing information, and the retrieval query.
+
+The Clarifier is not a separate visible chat bubble. Its output is shown in the
+structured summary and informs the downstream search. In this implementation,
+the LLM extracts and organizes text; it does not perform the paper’s claimed
+SNOMED CT/ICD-10 coding. That coding is not implemented here.
+
+
+4. WHAT IS THE CONFIDENCE SCORE? WHAT ARE THE SCORES BESIDE RAG PASSAGES?
+------------------------------------------------------------------------
+The overall confidence number is a project-specific heuristic from 0 to 1. It
+is used as a control signal for whether to try another retrieval cycle. It is
+not a clinically calibrated probability, and 0.83 does not mean “83% chance
+the answer is correct.”
+
+Our code computes:
+
+  confidence = 0.35 × retrieval_similarity
+             + 0.25 × evidence_breadth
+             + 0.20 × web_support
+             + 0.20 × cross_source_agreement
+
+Where:
+  • retrieval_similarity is the mean similarity score of retrieved passages.
+  • evidence_breadth is retrieved passage count divided by top-k (5), capped
+    at 1.0.
+  • web_support is the fraction of candidate hypotheses whose condition words
+    overlap sufficiently with a PubMed title/abstract under a simple token
+    matching rule.
+  • cross_source_agreement is the fraction of RAG candidate conditions that
+    also appear among those PubMed-supported candidates.
+
+The weights are our replication heuristic. The paper describes a confidence
+threshold and relevant evidence factors, but does not publish this formula or
+these weights. We have not validated or calibrated the score against clinical
+outcomes. The threshold in this project is 0.65.
+
+The small “Score” beside each RAG passage is a retrieval similarity score: how
+close the passage embedding is to the query embedding in vector space. It is
+not the overall confidence and does not mean that passage is that likely to be
+true. Higher is closer under this embedding/search setup, not necessarily more
+clinically reliable.
+
+What we can say:
+“The overall score is an auditable research heuristic used to trigger another
+search cycle. It is not a probability or a measure validated for patient care.”
+
+
+5. WHAT DOES “HEURISTIC SCORE” MEAN? HOW DO WE KNOW IT IS VALID?
+--------------------------------------------------------------
+A heuristic is a practical rule built from selected signals. We combine
+retrieval similarity, how many passages were found, simple PubMed text support,
+and overlap between the two evidence streams. The implementation uses the
+explicit weighted formula above, and logs its components so we can inspect why
+the final value was produced.
+
+We do not know that this score is clinically valid. We have not calibrated it
+against a sufficiently large labeled dataset, measured reliability across
+clinical cases, or validated it with clinicians. The 0.65 threshold follows
+the paper’s reported threshold, but our score formula is not the paper’s
+published formula—the paper does not give its weights/formula. Therefore the
+paper’s reported threshold and our heuristic are not guaranteed to have the
+same meaning or calibration.
+
+The benchmark accuracy is a separate evaluation. It does not validate the
+confidence score. To validate confidence, future work would need a larger
+representative labeled set, calibration analysis (for example, whether cases
+scored near 0.8 are actually correct about 80% of the time), and expert review.
+
+
+6. WHY DOES THE OUTPUT SAY “RAG CANDIDATE — NOT A DIAGNOSIS”?
+------------------------------------------------------------
+“Epistaxis” is the medical term for a nosebleed. “Epistaxis associated with
+mucosal bleeding” is a candidate concept surfaced by retrieval in the shown
+case. It describes the symptom/evidence topic; it does not identify why the
+nosebleed happened or establish a disease.
+
+The generated response is the system’s text answer. For the live example, it
+said the combination of high fever, vomiting, and bleeding warrants prompt
+medical evaluation. That is a safety-oriented generated response, not a
+confirmed diagnosis. The two areas answer different questions:
+
+  • RAG candidate: what concept/condition-like phrase appeared in the retrieved
+    evidence stage?
+  • Generated response: what short response did the final language-model
+    stage produce from the case and evidence report?
+
+The system does not establish a cause from the supplied text. The disclaimer is
+important because this prototype is not validated for patient care. Do not
+present the candidate phrase as the person’s diagnosis.
+
+
+7. WHY DID DEMO 2 RUN TWICE? HOW MANY CYCLES ARE ALLOWED? DOES THIS MATCH THE PAPER?
+-----------------------------------------------------------------------------------
+The full pipeline compares its heuristic confidence with threshold 0.65 after
+each fusion step. When the score is below 0.65 and the maximum has not been
+reached, the Optimizer produces feedback and a refined retrieval query. If the
+score meets/exceeds 0.65, the loop stops. If confidence remains low at the
+maximum, it stops because of the iteration limit and returns the available
+result with that limitation recorded.
+
+The project maximum is three iterations/cycles (`MAX_ITERS=3` by default). A
+case can stop after one, two, or three; three is a maximum, not a promise to
+always run three. In the saved adaptive demonstration, cycle 1 scored below
+threshold, prompting optimizer feedback; cycle 2 scored above threshold, so it
+stopped. The normal saved demonstration met the threshold on its first cycle.
+
+The paper reports a confidence threshold of 0.65 and a maximum of three
+optimization cycles. Those controls are mirrored in our configuration. The
+implementation is still a simplification: we use our own unpublished-by-paper
+heuristic, explicit Python orchestration rather than CrewAI, and different
+search/model details. Thus we follow the high-level stopping design, not a
+bit-for-bit reproduction of the paper.
+
+
+8. WHAT DATABASES AND MODELS DO WE USE? ARE THEY THE SAME AS THE PAPER?
+-----------------------------------------------------------------------
+There are two local Qdrant collections used for vector retrieval:
+
+  1) Biomedical collection: about 2,800 PubMed abstracts split into about
+     11,244 text chunks.
+  2) Textbooks collection: a balanced sample from 18 books in the public
+     MedRAG textbook corpus, up to 780 passages per book; 13,691 passages were
+     indexed after filtering.
+
+The index was built locally. Qdrant is the vector database engine; it stores
+passage text/metadata and embedding vectors. It is not itself a medical source.
+PubMed is maintained by the US National Library of Medicine and is an official
+biomedical citation/abstract database. Our textbook passages come from the
+public MedRAG research corpus; that does not make the set an official clinical
+guideline collection or a hospital-approved knowledge base. We did not claim to
+copy a named book list from the paper: its text did not provide a usable exact
+list for our replication, so we chose the public MedRAG corpus and documented
+that choice.
+
+The embedding model ID configured in this project is
+`pritamdeka/BioBERT-mnli-snli-scinli-scitail-mednli-stsb`. It is a BioBERT-based
+SentenceTransformer model tuned for biomedical/clinical text similarity and
+inference tasks. It encodes a query and passages into vectors so Qdrant can
+retrieve semantically related text. It does not generate the final answer.
+README records this model ID as matching the model named in the paper. The
+paper’s broader corpus and web-search setup are not identical to ours.
+
+Our live external search is PubMed via NCBI E-utilities. The paper describes a
+broader web-intelligence setup, including sources/services beyond PubMed. Our
+local corpus, source mix, and implementation are therefore partial
+replications, not the paper’s exact database environment.
+
+“Official database” and “same database as the paper” are different claims:
+PubMed is an official NLM service, but our selected PubMed records and MedRAG
+passages are not necessarily the same sources used for the paper’s results.
+
+
+9. WHAT HAPPENS WHEN SOMEONE TYPES TEXT AND CLICKS ANALYZE?
+---------------------------------------------------------
+In the live page, the web server passes the free-text input to the existing
+Python pipeline. The stages are:
+
+  INPUT TEXT
+     ↓
+  Clarifier — Gemini structures symptoms, duration, missing details, concepts,
+              and an initial retrieval query.
+     ↓
+  Local retrieval — BioBERT-based encoder creates vectors; Qdrant searches the
+                    biomedical and textbook collections.
+     ↓
+  RAG Analyzer — Gemini receives the case and retrieved passages and returns
+                 candidate hypotheses with passage-grounded rationale.
+     ↓
+  Evidence Scanner — Python queries NCBI PubMed; results include abstracts and
+                     publication metadata. Gemini may help form search terms,
+                     depending on configuration.
+     ↓
+  Fusion — Gemini summarizes agreement/conflict; Python calculates the
+           weighted heuristic score.
+     ↓
+  Optimizer — if score < 0.65 and cycle limit not reached, Gemini proposes a
+              refined query; Python repeats retrieval/evidence/fusion.
+     ↓
+  Final selection — Gemini generates the final free-text response (or selects
+                    an option for benchmark questions); Python saves the audit
+                    log, and the page displays the output and evidence.
+
+The page and Python server do not train a model during analysis. The embedding
+model and local index already exist. The system performs retrieval, external
+requests, several LLM requests, deterministic score calculations, and logging.
+Live response time depends on network/API availability and the number of
+iterations. Saved demonstrations replay local logs and do not make live API
+calls; a live free-text analysis does.
+
+
+10. IS THIS REALLY FIVE AGENTS IF THEY ALL USE GEMINI?
+----------------------------------------------------
+The honest answer is: there are five distinct agent roles in the software
+workflow, but they are not five independent AI models or five autonomous
+services. The Clarifier, RAG Analyzer, Evidence Scanner, Fusion, and Optimizer
+have different prompts, inputs, outputs, and responsibilities. The Python
+pipeline calls the same configured Gemini model separately for those LLM
+tasks. The API does not keep one continuous conversation that personally
+performs every stage; our Python program controls the order and passes each
+stage the relevant data. The roles may be separate API calls, but they share a
+model/provider and are not independent model systems.
+
+Some work is not done by Gemini at all:
+  • Python structures requests, controls the loop, checks stop conditions,
+    formats results, and writes logs.
+  • The embedding model encodes queries and passages.
+  • Qdrant performs vector search.
+  • NCBI E-utilities retrieves PubMed records.
+  • Python labels evidence levels and calculates the confidence formula.
+  • The browser displays the result.
+
+The paper used multiple LLMs for different roles and CrewAI orchestration. We
+use one Gemini model for the five prompt-defined roles and explicit Python
+orchestration. This is a clear deviation. It is reasonable for a student
+prototype, but it means we should not claim five independent AI models or
+equivalent autonomy to the paper.
+
+If asked “isn’t it just one model?” say:
+“It is one underlying Gemini model assigned to five specialized prompt roles,
+with each stage invoked separately and orchestrated by our Python pipeline.
+The retrieval, PubMed access, scoring, and control flow are separate software
+components. We acknowledge that this is less independent than using five
+different models; model diversity is a limitation and a future improvement.”
+
+
+HOW TO EXPLAIN THE TWO SAVED DEMONSTRATIONS
+-------------------------------------------
+Normal case — `medqa_347`:
+The saved exam question goes through one full iteration. The Clarifier
+structures the question, retrieval finds passages, candidate evidence is
+compared with PubMed, and the final selector returns the benchmark answer with
+a rationale. Confidence meets the threshold, so no second cycle is needed.
+Original answer choices are visible because this is a benchmark question.
+
+Adaptive case — `medqa_107`:
+The first cycle has a low heuristic score, so the Optimizer suggests a more
+focused search. The next cycle retrieves and compares evidence using the
+refined query; its score meets the threshold, so the loop stops. This shows the
+feedback mechanism, not proof that the second answer is medically correct in
+general.
+
+Live free-text case:
+The user types symptoms without selecting a disease or answer choice. The
+system structures them, searches its index and PubMed, and produces a generated
+response plus supporting material. In the nosebleed/fever example, “epistaxis”
+is a symptom-level RAG candidate; the final text recommends prompt clinical
+evaluation. It does not diagnose the cause.
+
+
+PAPER VS. OUR PROJECT — THE HONEST COMPARISON
+--------------------------------------------
+Paper elements reflected in our design:
+  • Five named functional roles and an adaptive feedback loop.
+  • BioBERT-style semantic retrieval and Qdrant vector search.
+  • Confidence threshold 0.65 and maximum of three cycles.
+  • A web prototype concept with free-text input and an annotated result.
+
+Documented differences/limitations:
+  • One Gemini model fills all five prompt roles; paper uses multiple models.
+  • Explicit Python orchestration replaces CrewAI.
+  • We use a local sample of MedRAG textbooks plus PubMed abstracts rather than
+    the paper’s exact full corpus and wider web-search sources.
+  • SNOMED CT/ICD-10 coding is not implemented.
+  • The confidence formula is ours; the paper does not publish the formula.
+  • Only 20 MedQA questions were evaluated; PubMedQA and MedBullets were not.
+  • No clinical validation has been done. This is not for patient care.
+
+
+PRESENTATION WORDING TO KEEP STRAIGHT
+------------------------------------
+Say: “candidate hypothesis,” “retrieved passage,” “PubMed abstract,”
+“experimental heuristic,” “preliminary benchmark result,” and “prototype.”
+
+Avoid saying: “the system diagnosed the patient,” “83% certain,” “clinically
+validated,” “the paper’s exact formula,” “five independent AI models,” or “the
+same full database as the paper.”
+
+
+REFERENCES / WHERE TO VERIFY
+----------------------------
+Base paper:
+Oğdu, Ç. U., Arslanoğlu, K., and Karaköse, M. “An Adaptive Multi-Agent LLM-
+Based Clinical Decision Support System Integrating Biomedical RAG and Web
+Intelligence.” IEEE Access, 2025. DOI: 10.1109/ACCESS.2025.3613340.
+
+Project implementation:
+  src/clarifier.py       structured case extraction
+  src/rag_analyzer.py    passage-grounded candidate generation
+  src/retrieval.py       BioBERT embeddings and Qdrant search
+  src/evidence_scanner.py / src/pubmed.py   PubMed search and evidence labels
+  src/fusion.py          comparison and confidence heuristic
+  src/optimizer.py       feedback/query refinement
+  src/pipeline.py        orchestration, stop conditions, final response
+  src/config.py          threshold, maximum cycles, models, retrieval settings
+  README.md              results, corpus details, and deviations
+
+============================================================
+End of presentation guide

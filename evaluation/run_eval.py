@@ -1,12 +1,17 @@
 """Evaluation harness.
 
-Compares the paper's three configurations on the SAME fixed questions:
+Compares the paper's four configurations on the SAME fixed questions:
   baseline : no retrieval
   rag      : biomedical retrieval only
+  web      : external evidence only (PubMed + NICE + Serper)
   full     : RAG + web + fusion + adaptive feedback
 
 Scoring is exact match on the option letter (MedQA / MedBullets) or, for free-text
 datasets, an explicitly labelled semantic-similarity rule (paper: theta = 0.80).
+
+Every row records correctness, confidence, iterations, latency, the evidence that
+was actually retrieved (passage/web-record counts and which sources answered) and
+any error - never a fabricated value.
 """
 from __future__ import annotations
 
@@ -40,7 +45,66 @@ def _cos(a: str, b: str) -> float:
     return sum(x * y for x, y in zip(va, vb))  # vectors are L2-normalised
 
 
-def run_one(row: dict, mode: str) -> dict:
+def _evidence_payload(res: dict, row: dict, mode: str) -> dict:
+    """Compact per-question evidence record for the sidecar JSONL.
+
+    Keeps what each question actually consumed - local passages, external
+    records (title/url/source/level), the Fig. 5 fallback rungs used, the
+    per-agent model trace and the confidence breakdown - so an evaluation row
+    can always be traced back to its evidence.
+    """
+    its = res.get("iterations") or []
+    passages = [p for i in its for p in i.get("passages", [])]
+    if not passages:
+        passages = res.get("passages") or []
+    web_records = [
+        {
+            "title": str(r.get("title", ""))[:160],
+            "url": str(r.get("url") or r.get("link") or ""),
+            "source": r.get("source"),
+            "evidence_level": r.get("evidence_level"),
+            "condition": r.get("condition"),
+            "year": r.get("year") or "",
+        }
+        for i in its
+        for r in i.get("web_records", [])
+    ]
+    return {
+        "case_id": row["id"],
+        "mode": mode,
+        "hypotheses": [h for i in its for h in i.get("hypotheses", [])],
+        "n_passages": len(passages),
+        "passages": [
+            {
+                "title": str(p.get("title", ""))[:160],
+                "score": p.get("score"),
+                "source": p.get("source") or p.get("collection"),
+            }
+            for p in passages
+        ],
+        "n_web_records": len(web_records),
+        "web_records": web_records,
+        "evidence_sources": sorted({w["source"] for w in web_records if w["source"]}),
+        "retrieval_trace": [
+            {"iteration": i.get("iteration"), **(i.get("retrieval_trace") or {})}
+            for i in its
+            if i.get("retrieval_trace")
+        ],
+        "stop_reasons": [i.get("stop_reason") for i in its],
+        # the optimizer's feedback report per iteration (reason/focus/
+        # query_action/refined_query) - needed to analyse the loop honestly
+        "feedback": [i.get("feedback") for i in its if i.get("feedback")],
+        "confidence": res.get("confidence"),
+        "confidence_components": res.get("confidence_components"),
+        "confidence_factors": res.get("confidence_factors"),
+        "diagnoses": res.get("diagnoses"),
+        "search_failures": [f for i in its for f in i.get("search_failures", [])],
+        "model_trace": res.get("model_trace"),
+        "latency_s": res.get("latency_s"),
+    }
+
+
+def run_one(row: dict, mode: str, evidence: bool = True) -> dict:
     t0 = time.time()
     try:
         res = run_case(
@@ -59,6 +123,22 @@ def run_one(row: dict, mode: str) -> dict:
             pred = res["selected"]["answer_text"]
             gold = row.get("answer_text", "")
             correct = bool(pred and gold) and _cos(pred, gold) >= config.THETA
+        # Evidence actually retrieved for this question (audit columns):
+        # how many local passages / external records were consumed and which
+        # external sources answered. Absent streams report 0 / "" - never a guess.
+        its = res.get("iterations") or []
+        n_passages = sum(int(i.get("n_passages") or 0) for i in its)
+        if not n_passages:
+            n_passages = len(res.get("passages") or [])
+        n_web = sum(int(i.get("n_web_records") or 0) for i in its)
+        sources = sorted(
+            {
+                str(r.get("source"))
+                for i in its
+                for r in i.get("web_records", [])
+                if r.get("source")
+            }
+        )
         return {
             "case_id": row["id"],
             "mode": mode,
@@ -69,7 +149,13 @@ def run_one(row: dict, mode: str) -> dict:
             "confidence": res.get("confidence"),
             "iterations": res.get("n_iterations"),
             "latency_s": round(time.time() - t0, 2),
+            "n_passages": n_passages,
+            "n_web_records": n_web,
+            "evidence_sources": "+".join(sources),
             "error": "",
+            # sidecar payload (popped before the CSV is written): what evidence
+            # this question actually consumed, so nothing is unauditable
+            "_evidence": _evidence_payload(res, row, mode) if evidence else None,
         }
     except Exception as exc:  # noqa: BLE001 - record, never fabricate
         return {
@@ -82,7 +168,11 @@ def run_one(row: dict, mode: str) -> dict:
             "confidence": None,
             "iterations": 0,
             "latency_s": round(time.time() - t0, 2),
+            "n_passages": 0,
+            "n_web_records": 0,
+            "evidence_sources": "",
             "error": str(exc)[:300],
+            "_evidence": None,
         }
 
 
@@ -90,9 +180,19 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dataset", default="medqa")
     ap.add_argument("--n", type=int, default=20)
-    ap.add_argument("--modes", default="baseline,rag,full")
+    ap.add_argument(
+        "--modes",
+        default="baseline,rag,web,full",
+        help="comma list drawn from: baseline,rag,web,full (default: all four)",
+    )
     ap.add_argument("--workers", type=int, default=4)
+    ap.add_argument(
+        "--evidence",
+        default="1",
+        help="write the per-question evidence sidecar JSONL (1/0, default 1)",
+    )
     args = ap.parse_args()
+    want_evidence = str(args.evidence).strip().lower() not in ("0", "false", "no")
 
     rows = load(args.dataset)[: args.n]
     modes = [m.strip() for m in args.modes.split(",") if m.strip()]
@@ -101,7 +201,7 @@ def main() -> None:
     results: list[dict] = []
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
         futures = {
-            pool.submit(run_one, row, mode): (row["id"], mode)
+            pool.submit(run_one, row, mode, want_evidence): (row["id"], mode)
             for mode in modes
             for row in rows
         }
@@ -118,7 +218,21 @@ def main() -> None:
             )
 
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    out_csv = config.RESULTS_DIR / f"eval_{args.dataset}_{stamp}.csv"
+    # Every NEW run is prefixed repl_ so replication results can never be mixed
+    # up with the frozen prototype benchmark (eval_medqa_20261026_*).
+    out_csv = config.RESULTS_DIR / f"repl_eval_{args.dataset}_{stamp}.csv"
+
+    # Sidecar first (it still holds _evidence), then strip it for the CSV.
+    sidecar = None
+    if want_evidence:
+        sidecar = config.RESULTS_DIR / f"repl_eval_{args.dataset}_{stamp}_evidence.jsonl"
+        with sidecar.open("w", encoding="utf-8") as fh:
+            for r in sorted(results, key=lambda r: (r["mode"], r["case_id"])):
+                if r.get("_evidence"):
+                    fh.write(json.dumps(r["_evidence"], ensure_ascii=False) + "\n")
+    for r in results:
+        r.pop("_evidence", None)
+
     with out_csv.open("w", newline="", encoding="utf-8") as fh:
         w = csv.DictWriter(fh, fieldnames=list(results[0].keys()))
         w.writeheader()
@@ -142,7 +256,7 @@ def main() -> None:
             "mean_latency_s": round(sum(r["latency_s"] for r in rs) / n, 1),
         }
 
-    out_json = config.RESULTS_DIR / f"eval_{args.dataset}_{stamp}.json"
+    out_json = config.RESULTS_DIR / f"repl_eval_{args.dataset}_{stamp}.json"
     sample_path = config.SAMPLES_DIR / f"{args.dataset}_sample.jsonl"
     run_config = {
         "timestamp": datetime.now().isoformat(timespec="seconds"),
@@ -177,6 +291,8 @@ def main() -> None:
             f"{s['mean_latency_s']}s/case"
         )
     print(f"\nCSV  -> {out_csv}\nJSON -> {out_json}")
+    if sidecar:
+        print(f"EVIDENCE -> {sidecar}")
 
 
 if __name__ == "__main__":

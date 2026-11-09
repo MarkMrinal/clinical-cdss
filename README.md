@@ -222,13 +222,31 @@ Behaviour:
 ```
 confidence = 0.35 × retrieval_similarity      (best BioBERT cosine of returned passages)
            + 0.25 × evidence_breadth          (fraction of top-k slots actually filled)
-           + 0.20 × web_support               (fraction of hypotheses supported by a PubMed record)
+           + 0.20 × web_support               (fraction of hypotheses supported by a web record)
            + 0.20 × cross_source_agreement    (overlap between RAG hypotheses and web-supported ones)
 ```
 
+- **Mapped onto the paper's three named factors (§II-A-4)** — the paper says the
+  calibrated confidence "depends on factors such as the similarity score of the RAG,
+  evidence score of web information, and degree of concordance between the two streams"
+  but never publishes the formula, so the same four components are grouped as:
+
+  | Paper factor (§II-A-4) | our components | weights (ours) |
+  |---|---|---|
+  | `rag_similarity` — similarity score of the RAG | `retrieval_similarity`, `evidence_breadth` | 0.35 + 0.25 |
+  | `web_evidence_score` — evidence score of web information | `web_support` | 0.20 |
+  | `cross_stream_concordance` — concordance between the two streams | `cross_source_agreement` | 0.20 |
+
+  The grouping is presentational: **not one number changed** (the sum is the same
+  left-to-right expression as before). `confidence_factors` in every log shows each
+  factor's components, weights and contribution.
+- **Per-diagnosis report rows (§II-A-4)** — the report now carries, for every
+  candidate diagnosis, its `evidence` (`[R#]` local passages, `[W#]` web records),
+  `source` (`rag` / `web` / both), `confidence` (same weights, evaluated for that one
+  diagnosis) and an `above_threshold` flag at τ. Deterministic — no extra model call.
 - Threshold τ = 0.65 (as reported in the paper).
-- All four components are logged separately for every iteration, so any score can be
-  audited component-by-component.
+- All four components **and** the three factors are logged separately for every
+  iteration, so any score can be audited component-by-component.
 - **The score is a heuristic, not a calibrated probability.** A confidence of 0.85 does
   not mean "85% likely correct" — both of our full-pipeline errors scored > 0.84.
   The paper publishes the 0.65 threshold but never its formula; these weights are ours
@@ -251,8 +269,10 @@ confidence = 0.35 × retrieval_similarity      (best BioBERT cosine of returned 
 ## 10. Evaluation methodology
 
 - **Dataset:** first 20 questions of the frozen MedQA sample (seed 42, IDs fixed).
-- **Configurations:** `baseline`, `rag`, `full` — same 20 questions in all three
-  (verified: identical IDs and gold answers per mode).
+- **Configurations:** `baseline`, `rag`, `web`, `full` — the paper's four arms
+  (no retrieval / local RAG only / external evidence only / fused + feedback loop).
+  The two ablation arms are single-pass by design: with one stream there is nothing
+  for Fusion to cross-check. Same fixed IDs and gold answers in every mode.
 - **Scoring:** exact match on the option letter. (Free-text datasets would use the
   paper's cosine ≥ θ = 0.80 rule — labelled lenient — but none have been evaluated.)
 - **Settings:** `SCANNER_LLM_QUERY=0`, `MAX_ITERS=2`, `TOP_K=5`, 4 workers, temperature 0,
@@ -283,13 +303,37 @@ confidence = 0.35 × retrieval_similarity      (best BioBERT cosine of returned 
 - Latency (first uncached run): 28.8 s baseline, ~32 s RAG, 144.1 s full per case.
   Cached reruns take ~13 s/case — **not** deployment latency.
 
+### Phase 6 replication regression (2026-11-10, `full`, same 20 IDs)
+
+| Configuration | Correct | Accuracy | Errors | Mean confidence | Mean iterations |
+|---|---|---|---|---|---|
+| Full (Phase 3–6 code) | **18/20** | **90.0%** | 0 | 0.7666 | 1.35 |
+
+- **Every prediction is identical to the prototype run** — the same two misses
+  (`medqa_202` → C, `medqa_376` → E) and the same 18 correct answers, so the
+  Phase 3–6 changes (staged Clarifier, τ-ladder retrieval, three-source scanner,
+  factor mapping, per-diagnosis report) moved no decision on this set.
+- Honest caveat: the settings are *not* identical — the frozen prototype run used
+  `MAX_ITERS=2` + `SCANNER_LLM_QUERY=0`, this regression used the current defaults
+  `MAX_ITERS=3` + `SCANNER_LLM_QUERY=1`. Same IDs, same gold, different knobs.
+- **Cache gate:** prompts untouched since Phase 5 still hit the Phase-5 cache
+  (clarifier / RAG Analyzer / scanner query / fusion all `cached=True`); only the
+  selection prompt missed, because the report now carries the per-diagnosis rows.
+  An identical repeat run was 100% cache hits and reproduced the same confidence.
+- Files: `results/repl_eval_medqa_20261110_001343.{csv,json}` plus
+  `..._evidence.jsonl` (per-question evidence sidecar: passages, web records with
+  URLs, Fig. 5 rungs, stop reasons, feedback, model trace).
+- Transient NCBI 502/429 responses were recorded and degraded gracefully — 0 errors;
+  one case (`medqa_2`, porcelain gallbladder) returned 0 external records in all
+  three iterations and still answered correctly from the local RAG stream.
+
 ## 12. Project status — implemented / tested / evaluated / future
 
 | Category | Items |
 |---|---|
-| **Implemented** (exists in code) | Five agents + pipeline loop; staged Clarifier (deterministic normalisation → zero-shot NER/associations → ICD-10-CM via free NLM API); BioBERT/Qdrant three-collection RRF retrieval with τ=0.65 evidence threshold, term boosting and the Fig. 5 fallback ladder; **three-source evidence scanner (PubMed + keyless NICE + Serper) with per-source failure isolation, source tagging and derived web summaries**; confidence heuristic with logged components; optimizer re-query; CLI + local web demo (live analysis and saved replay); audit logging; LLM disk cache + Serper response cache; evaluation harness; benchmark sampler; per-agent provider/model configuration with automatic Gemini fallback and per-agent `model_trace` logging |
-| **Tested** (verified technically) | End-to-end demos `medqa_347` and `medqa_107`; Qdrant concurrency stress test (8 threads / 16 calls, 0 failures, counts unchanged); retrieval smoke tests; Phase 4 suite (22 checks); Phase 5 suite (36 checks: Serper live+cache+keyless, NICE keyless parse, three-source scan, outage isolation, web summaries, full `run_case`); JSON parsing/LLM retry paths; gold-answer isolation; demo replay viewer |
-| **Evaluated** (measured experimentally) | MedQA, 20 questions × 3 configurations (results in §11) |
+| **Implemented** (exists in code) | Five agents + pipeline loop; staged Clarifier (deterministic normalisation → zero-shot NER/associations → ICD-10-CM via free NLM API); BioBERT/Qdrant three-collection RRF retrieval with τ=0.65 evidence threshold, term boosting and the Fig. 5 fallback ladder; **three-source evidence scanner (PubMed + keyless NICE + Serper) with per-source failure isolation, source tagging and derived web summaries**; confidence heuristic with logged components **mapped onto the paper's three named §II-A-4 factors** + **per-diagnosis report rows (evidence/source/confidence/τ-flag)**; optimizer feedback report (`reason`/`focus`/`query_action`/`refined_query`); **`web`-only ablation mode** (no local index, no fusion); CLI + local web demo (live analysis and saved replay); audit logging; LLM disk cache + Serper response cache; evaluation harness with `repl_` outputs + per-question evidence sidecar; benchmark sampler; per-agent provider/model configuration with automatic Gemini fallback and per-agent `model_trace` logging |
+| **Tested** (verified technically) | End-to-end demos `medqa_347` and `medqa_107`; Qdrant concurrency stress test (8 threads / 16 calls, 0 failures, counts unchanged); retrieval smoke tests; Phase 4 suite (22 checks); Phase 5 suite (36 checks: Serper live+cache+keyless, NICE keyless parse, three-source scan, outage isolation, web summaries, full `run_case`); **Phase 6 suite (59 checks: three-factor mapping, byte-identical confidence arithmetic, per-diagnosis rows, `should_optimize`, `query_action`, web-mode hypothesis fallback, mode guard, CLI/harness wiring, live web run, full-mode cache gate)**; JSON parsing/LLM retry paths; gold-answer isolation; demo replay viewer |
+| **Evaluated** (measured experimentally) | MedQA, 20 questions × 3 configurations (prototype run, §11); **Phase 6 full-mode regression on the same 20 IDs: 18/20, identical predictions, 0 errors** (§11) |
 | **Not yet evaluated** | PubMedQA (50 frozen) and MedBullets (50 frozen) — prepared but **no results**; free-text θ = 0.80 scoring path (implemented, never exercised on a benchmark); 50-question MedQA runs |
 | **Future work** (outside current scope) | Larger evaluation, retrieval-quality metric with stemming, confidence calibration study, two-model role heterogeneity (needs a second API key), expert/clinician review, proactive background scanning (paper's "continuous" refresh) |
 
@@ -304,7 +348,7 @@ confidence = 0.35 × retrieval_similarity      (best BioBERT cosine of returned 
 | Textbooks/guidelines/epidemiological datasets (titles unpublished) | balanced 780/book sample from MedRAG | **deviation** (paper's corpus unreproducible) |
 | Term boosting algorithm (Table 2: "Active", weights unpublished) | documented approximation: append absent priority terms, repeat present ones once, never boost "no …" negations, max 5 terms / 400 chars (`_boost_query`) | **approximation** (Phase 4) — paper gives no formula |
 | SNOMED CT / ICD-10 mapping | staged Clarifier + **ICD-10-CM via free NLM Clinical Tables API** (real codes only, `matched_on` recorded; SNOMED CT deferred — licence) | **partial** (Phase 3) — never claims codes we did not return |
-| Confidence formula | documented heuristic | **not published in paper** |
+| Confidence formula | documented heuristic, **grouped onto the paper's three named §II-A-4 factors** (`rag_similarity` / `web_evidence_score` / `cross_stream_concordance`) with per-diagnosis rows; arithmetic unchanged | **not published in paper** — factors named by the paper, weights ours |
 | max 3 feedback cycles | default 3; evaluation used 2 (time budget) | documented |
 | 1,000 PDFs → 200k chunks → 18M embeddings | 34,206 chunks | paper's arithmetic is inconsistent; not treated as a target |
 
@@ -370,6 +414,7 @@ python main.py --case medqa_347                    # full pipeline on one benchm
 python main.py --case medqa_107                    # adaptive-correction item (2 iterations)
 python main.py --question "45M, fever, cough..."   # free-text case
 python main.py --question "..." --mode rag         # retrieval only
+python main.py --question "..." --mode web         # external evidence only (ablation arm)
 python scripts\show_case.py medqa_107              # pretty-print the saved audit log
 python scripts\summarize_eval.py                   # results table + paired comparison
 ```
@@ -405,12 +450,18 @@ are still real. First uncached runs took ~100 s per case.
 
 ```powershell
 $env:SCANNER_LLM_QUERY='0'; $env:MAX_ITERS='2'
-python evaluation\run_eval.py --dataset medqa --n 20 --modes baseline,rag,full --workers 4
+python evaluation\run_eval.py --dataset medqa --n 20 --modes baseline,rag,web,full --workers 4
 python scripts\summarize_eval.py
 ```
 
-Outputs `results/eval_medqa_<timestamp>.csv` + `.json` with per-case rows, a summary,
-and a `run_config` block (dataset SHA-256, model, thresholds, Python version).
+New runs are always written with the **`repl_` prefix** so they can never be confused
+with the frozen prototype benchmark: `results/repl_eval_medqa_<timestamp>.csv` + `.json`
+(per-case rows + `run_config` with dataset SHA-256, model, thresholds, Python version)
+and `results/repl_eval_medqa_<timestamp>_evidence.jsonl` — one line per (question, mode)
+with the passages, web records (title/URL/source/level), Fig. 5 fallback rungs, stop
+reasons, optimizer feedback, confidence factors, per-diagnosis rows and the per-agent
+model trace. `--evidence 0` skips the sidecar.
+
 PubMedQA/MedBullets runs are **optional experiments requiring team approval** — the
 same command with `--dataset pubmedqa` or `--dataset medbullets`.
 

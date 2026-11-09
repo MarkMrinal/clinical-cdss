@@ -12,8 +12,8 @@
 | 3 | Clinical text processing (staged entities/associations + ICD-10-CM coding) | ✅ **COMPLETE** | staged Clarifier + `src/coding.py` (NLM ICD-10-CM); SNOMED deferred (details below) |
 | 4 | Biomedical corpus & RAG (term boosting, Fig-5 fallback, metadata, optional HF symptom-disease collection) | ✅ **COMPLETE** | third collection `symptom_disease` (9,271 pts) + τ=0.65 + boosting + Fig. 5 ladder; 22/22 tests (details below) |
 | 5 | External evidence scanning (Serper if key provided, optional NICE, failure isolation) | ✅ **COMPLETE** | Serper (live, key in `.env`) + **keyless NICE** + PubMed, per-source isolation, web summaries (details below) |
-| 6 | Clinical fusion & adaptive optimization (+ `web` mode) | ⏭️ **NEXT** | confidence weights stay ours, labeled |
-| 7 | Experimental evaluation (micro metrics, ablation, iteration sweep, 3 datasets, MedBullets free-text) | ⏸️ queued | **API spend approval required before runs** |
+| 6 | Clinical fusion & adaptive optimization (+ `web` mode) | ✅ **COMPLETE** | three named §II-A-4 factors (weights ours, arithmetic unchanged) + per-diagnosis report + `web`-only arm; 59/59 tests + 20-ID regression 18/20 (details below) |
+| 7 | Experimental evaluation (micro metrics, ablation, iteration sweep, 3 datasets, MedBullets free-text) | ⏭️ **NEXT** | **API spend approval required before runs** (Serper cache already warm for the MedQA 20) |
 | 8 | Web interface report upgrades (Fig. 6 fields) | ⏸️ queued | |
 | 9 | Final replication analysis & documentation (README rewrite, deviation ledger) | ⏸️ queued | |
 
@@ -47,7 +47,7 @@ New replication runs will use the `repl_` filename prefix so they can never be c
 - **`src/config.py`** — `AGENT_CONFIG` for six stages (`clarifier`, `rag_analyzer`, `evidence_scanner`, `fusion`, `optimizer`, `select`): per-agent `<AGENT>_PROVIDER` / `<AGENT>_MODEL` env overrides, shared `LLM_PROVIDER` default, shared Gemini default model. No keys in code — each provider reads `<PROVIDER>_API_KEY` from `.env`.
 - **`src/llm.py`** — provider dispatch: native Gemini adapter (retry/backoff/model-chain preserved) + OpenAI-compatible adapter (openai/groq/openrouter/together/mistral/deepseek/xai/cerebras/perplexity, or any name + `<PROVIDER>_BASE_URL`); any provider failure → **graceful fallback to the Gemini chain** with the reason logged; thread-local per-call **model trace** (agent, requested vs executed provider/model, cache-hit, fallback flag+reason, duration, status). Cache key format unchanged → all existing cache entries still hit.
 - **Agent tagging** — all 5 agent modules + `pipeline._select` pass `agent=...` to `generate_json`.
-- **`src/pipeline.py`** — `run_case` resets/collects the trace and stores `log["model_trace"]` + `parameters.agent_config` in every execution log (all three modes).
+- **`src/pipeline.py`** — `run_case` resets/collects the trace and stores `log["model_trace"]` + `parameters.agent_config` in every execution log (all modes).
 - **`.env.example`** — commented per-agent override block (no real keys).
 - **Tests (all PASS):** ① config/import smoke (`AGENT_CONFIG` = 6× gemini/flash-lite) ② broken-provider fallback (requested `localtest` → executed `gemini`, `fallback=True` + reason in trace) ③ cached full-pipeline `run_case` on `medqa_2` — correct answer C, per-agent `model_trace` recorded across 10 calls (clarifier/rag/fusion/optimizer/select) ④ scanner tag test (LLM query built, `agent=evidence_scanner`, 4 PubMed records) ⑤ saved-case demo replay `/api/cases/medqa_347` → 200 + full case JSON ⑥ `py_compile` clean on all touched modules.
 - **Note:** `evidence_scanner` LLM calls appear in traces only when hypotheses exist and `SCANNER_LLM_QUERY=1` (default); for `medqa_2` the RAG stage found 0 evidence-backed hypotheses → scanner correctly had nothing to scan.
@@ -91,6 +91,79 @@ New replication runs will use the `repl_` filename prefix so they can never be c
 - **Demo replay:** `/api/cases/medqa_347` → 200, answer A.
 - **Credit spend:** 4 Serper searches total (now cached); the free 2,500-credit tier is intact for Phase 7.
 
+## Phase 6 delivered (2026-11-10)
+
+- **Three named confidence factors (paper §II-A-4, `src/fusion.py`)** — the paper says
+  the calibrated confidence "depends on factors such as the similarity score of the RAG,
+  evidence score of web information, and degree of concordance between the two streams"
+  but never publishes the formula. The four existing components are now **grouped onto
+  exactly those three factors** (`rag_similarity` ← `retrieval_similarity` +
+  `evidence_breadth`; `web_evidence_score` ← `web_support`;
+  `cross_stream_concordance` ← `cross_source_agreement`) in a new `confidence_factors`
+  block showing each factor's paper label, components, weights and contribution.
+  **The grouping is presentational only** — the confidence is computed from the same
+  left-to-right expression as before, so no published number moved and the optimizer's
+  trigger decisions are unchanged (verified byte-identical in the test suite).
+  Weights stay ours and `confidence_method` says so.
+- **Per-diagnosis report rows (paper §II-A-4)** — `fuse()` now returns `diagnoses[]`,
+  one deterministic row per candidate diagnosis with `evidence` (`[R#]` local passages,
+  `[W#]` web records), `source` (`rag`/`web`/both), `confidence` (the same weights
+  evaluated for that one diagnosis: base + 0.20·web + 0.20·concordance) and
+  `above_threshold` at τ (paper §II-C: below-threshold recommendations are flagged, not
+  silently served). No extra model call; the rows average to the aggregate confidence
+  when condition names are unique. The rows ride in the report that the selection stage
+  reads **and** in `log["report"]`, so the two can never drift apart.
+- **`mode="web"` — the paper's web-only / "no RAG Analyzer" arm** (`src/pipeline.py`,
+  `main.py --mode web`, `run_eval --modes`, `summarize_eval`): Clarifier → knowledge-based
+  hypothesis proposal (`rag_analyzer.propose_without_retrieval`, 1 LLM call, falls back to
+  the Clarifier's key concepts if the model fails) → Evidence Scanner (PubMed + NICE +
+  Serper) → selection. **Single-pass by design**: no local index is touched (verified:
+  `n_passages=0`, no retrieval trace) and, with one stream, there is nothing for Fusion to
+  cross-check — symmetric with the `rag` arm. `confidence=None`, as in the other ablation
+  arms. The paper never states how its web-only configuration forms per-hypothesis search
+  terms once the RAG Analyzer is gone: that proposal call is our documented choice.
+- **Optimizer feedback report (paper §II-A-5)** — `optimize()` now also returns
+  `query_action ∈ {keywords, expand, reduce, rewrite}` (the paper's "keyword changes,
+  query expansion/reduction"), normalised to `rewrite` if the model invents an action.
+  The whole `feedback` dict is logged per iteration, and the pipeline comment documents
+  how it reaches **both** downstream agents (refined_query → RAG Analyzer's
+  `retrieval_query`, focus → the Clarifier `key_concepts` the Scanner reads).
+  `optimizer.should_optimize()` (was dead code) is now the loop's single source of truth —
+  same semantics, paper §II-D (τ or 3 iterations).
+- **Mode guard** — an unknown `--mode` now raises instead of silently falling through to
+  the full pipeline (which would have polluted an evaluation run).
+- **Eval harness** — four configurations by default (`baseline,rag,web,full`); new
+  per-question evidence columns (`n_passages`, `n_web_records`, `evidence_sources`);
+  a per-question **evidence sidecar** `repl_eval_<dataset>_<stamp>_evidence.jsonl`
+  (passages, web records with URL/source/level, Fig. 5 rungs, stop reasons, optimizer
+  feedback, confidence factors, per-diagnosis rows, model trace; `--evidence 0` skips it);
+  and every new run now uses the **`repl_` prefix** (closes gap-analysis item (b): new
+  results can never be mixed up with the frozen prototype files). `summarize_eval.py`
+  reads both prefixes and prints any mode present.
+- **Tests (59/59 PASS):** three-factor mapping with byte-identical arithmetic
+  (0.6547 old vs new), factor contributions summing to the confidence, per-diagnosis row
+  schema/sources/evidence/threshold flags, row-mean ≈ aggregate, `should_optimize` truth
+  table, `query_action` normalisation, web-hypothesis proposal + both fallbacks, unknown
+  mode guard, CLI/harness wiring (`--help` greps), summarizer over a synthetic 4-mode CSV,
+  a **live web-mode run** (13 external records from all three sources, no local index,
+  correct option) and the **full-mode cache gate**.
+- **Cache gate (the phase's acceptance criterion):** on the Phase-5 vignette, run 1 hit
+  the Phase-5 cache for every prompt that did not change (clarifier, RAG Analyzer,
+  scanner query, fusion — `cached=True`) and missed only `select` (the report now carries
+  the per-diagnosis rows); an identical repeat run was **100% cache hits** and reproduced
+  the same 0.8378 confidence.
+- **Full-mode regression, same 20 IDs:** **18/20 (90%), 0 errors** — and *every*
+  prediction is identical to the frozen prototype run (same two misses: `medqa_202` → C,
+  `medqa_376` → E). Honest caveat: knobs differ (prototype `MAX_ITERS=2` +
+  `SCANNER_LLM_QUERY=0` vs current defaults 3 / 1). Files:
+  `results/repl_eval_medqa_20261110_001343.{csv,json}` + `_evidence.jsonl`.
+  Transient NCBI 502/429 were recorded and degraded gracefully.
+- **Cost:** ~150 flash-lite calls (mostly cache misses for prompts that legitimately
+  changed) and **31 new Serper searches** (cache went 4 → 35 files) — the queries for
+  the MedQA 20 are now warm, so the Phase 7 full run re-uses them for 0 credits.
+- Known effect: the selection prompt changed (diagnoses block) → full-mode `select`
+  cache entries from Phases 3–5 no longer match; old cache files remain untouched.
+
 ## Log
 
 - **2026-11-09** — Phase 1 complete: full paper re-extraction (all 7 tables + Figs 1–6 OCR), full source audit (15 source files read), spec + gap analysis written. No source code modified in Phase 1.
@@ -98,3 +171,4 @@ New replication runs will use the `repl_` filename prefix so they can never be c
 - **2026-11-09** — Phase 3 complete: staged Clarifier (deterministic normalisation → zero-shot NER/associations → ICD-10-CM via free NLM API → unchanged structured contract); new `src/coding.py` with transparent `matched_on`, cache, budget and graceful failure; 8/8 tests pass; docs updated. SNOMED CT remains deferred (licence). No results/index/`.env` touched.
 - **2026-11-09** — Phase 4 complete: new `symptom_disease` collection (9,271 pts, existing collections untouched); τ=0.65 evidence threshold; term boosting (labeled approximation); Fig. 5 fallback ladder with per-rung trace + `retrieval_ms`; `length` metadata; 22/22 tests; before/after retrieval measurement recorded (0/20 → 0/20 lexical check, ladder fires 12/20). Thresholds from Table 2/Fig. 5 only — never tuned against eval questions. No results/`.env`/existing index touched.
 - **2026-11-09** — Phase 5 complete: `src/serper.py` (key in `.env`, value never handled by the assistant; disk-cached; 401/402/429 → named reasons) + `src/nice.py` (keyless direct NICE search) + 3-source scanner with per-source failure isolation, `source` tags, extended evidence hierarchy and derived `[W#]` web summaries; iteration logs now record `web_sources`/`web_summaries`/`search_failures`; 36/36 tests + end-to-end vignette (10 records from all 3 sources, summary cited, conf 0.8378); demo replay 200; docs updated. Google Scholar deliberately skipped (no official API). 4 Serper credits spent, all cached. No results/index touched.
+- **2026-11-10** — Phase 6 complete: confidence components mapped onto the paper's three named §II-A-4 factors (`confidence_factors`, arithmetic byte-identical, weights ours); per-diagnosis report rows (evidence `[R#]/[W#]`, source, confidence, τ-flag) added to the report the selection stage reads and to `log["report"]`; `mode="web"` ablation arm (Clarifier → knowledge-based hypothesis proposal → 3-source Scanner → selection; single-pass, no local index, no fusion) wired through `main.py`, `run_eval` (4 modes by default) and `summarize_eval`; optimizer feedback report gains `query_action` and `should_optimize()` now drives the loop; unknown modes raise; eval writes `repl_`-prefixed CSV/JSON + per-question evidence sidecar with new evidence columns. 59/59 tests; full-mode cache gate (untouched prompts still hit Phase-5 cache, only `select` missed, repeat run 100% cached at the same 0.8378); **full-mode regression on the same 20 IDs = 18/20 with every prediction identical to the prototype run** (`repl_eval_medqa_20261110_001343.*`). ~150 LLM calls, 31 new Serper searches (cache 4 → 35, warm for Phase 7). Frozen benchmark, index and `.env` untouched.

@@ -1,7 +1,7 @@
 """Summarise the newest evaluation CSV: accuracy table + paired mode comparison.
 
-  python scripts/summarize_eval.py                 # newest eval_*.csv
-  python scripts/summarize_eval.py --csv results/eval_medqa_....csv
+  python scripts/summarize_eval.py                 # newest eval_*.csv / repl_eval_*.csv
+  python scripts/summarize_eval.py --csv results/repl_eval_medqa_....csv
 """
 from __future__ import annotations
 
@@ -25,9 +25,14 @@ def main() -> None:
     if args.csv:
         path = Path(args.csv)
     else:
-        files = sorted((ROOT / "results").glob("eval_*.csv"), key=lambda p: p.stat().st_mtime)
+        # prototype benchmark = eval_*.csv, replication runs = repl_eval_*.csv
+        files = sorted(
+            list((ROOT / "results").glob("eval_*.csv"))
+            + list((ROOT / "results").glob("repl_eval_*.csv")),
+            key=lambda p: p.stat().st_mtime,
+        )
         if not files:
-            raise SystemExit("no eval_*.csv in results/")
+            raise SystemExit("no eval_*.csv / repl_eval_*.csv in results/")
         path = files[-1]
 
     rows = list(csv.DictReader(path.open(encoding="utf-8")))
@@ -36,9 +41,14 @@ def main() -> None:
         by_mode[r["mode"]].append(r)
 
     print(f"source: {path.name}\n")
+    # Canonical order first (the paper's four configurations), then anything else
+    # the caller passed, so a custom mode is never silently dropped.
+    canonical = ["baseline", "rag", "web", "full"]
+    order = [m for m in canonical if m in by_mode]
+    order += sorted(m for m in by_mode if m not in canonical)
     print("| mode | n | correct | accuracy | errors | mean conf | mean iters | s/case |")
     print("|---|---|---|---|---|---|---|---|")
-    for mode in ("baseline", "rag", "full"):
+    for mode in order:
         rs = by_mode.get(mode)
         if not rs:
             continue

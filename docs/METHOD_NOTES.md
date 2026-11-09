@@ -23,11 +23,17 @@ exact reproduction of its test sets is impossible.
 |---|---|---|
 | `baseline` | one prompt: question + options → option letter | 1 |
 | `rag` | BioBERT/Qdrant top-5 → one selection prompt | 1 + retrieval |
+| `web` | Clarifier → knowledge-based hypothesis proposal → Evidence Scanner (PubMed + NICE + Serper) → selection; **no local index, no fusion loop** | 3–4 + web fetches |
 | `full` | Clarifier → (RAG Analyzer → Evidence Scanner → Fusion) × iterations → selection | 5–7 per iteration |
 
 `full` is the paper's configuration. It is not "RAG plus a bigger prompt": the Fusion
 stage explicitly compares two evidence streams, and the Optimizer can rewrite the query
 when confidence < τ.
+
+The two ablation arms (`rag`, `web`) are single-pass by design: Fusion exists to
+cross-check **two** streams, so with one stream there is nothing to fuse — symmetric
+with each other and with the paper's own ablation structure. `confidence` is `None`
+in both, so a mean confidence is only ever reported for `full`.
 
 ## Scoring
 
@@ -87,8 +93,15 @@ These are deviations, not hidden knobs. They are printed in every audit log unde
   fallback flag + reason, and duration — plus `parameters.agent_config`. The two saved
   demo logs (`medqa_107`, `medqa_347`) predate Phase 2 and therefore have no
   `model_trace`.
-- `results/eval_medqa_<stamp>.csv` stores one row per (question, mode), including failures.
-- `scripts/summarize_eval.py` rebuilds the slide table and the paired comparison.
+- `results/repl_eval_<dataset>_<stamp>.csv` stores one row per (question, mode),
+  including failures, plus evidence columns (`n_passages`, `n_web_records`,
+  `evidence_sources`). Every replication run uses the **`repl_` prefix**; the frozen
+  prototype benchmark keeps its original `eval_medqa_<stamp>` names. Each run also
+  writes `..._evidence.jsonl` — one line per (question, mode) with the passages, web
+  records (title/URL/source/level), Fig. 5 rungs, stop reasons, optimizer feedback,
+  confidence factors, per-diagnosis rows and the model trace (`--evidence 0` skips it).
+- `scripts/summarize_eval.py` rebuilds the slide table and the paired comparison
+  (reads both `eval_*` and `repl_eval_*` prefixes).
 
 ## Known measurement weaknesses
 
@@ -133,3 +146,15 @@ These are deviations, not hidden knobs. They are printed in every audit log unde
    Table 2 / Fig. 5 annotations and were never tuned against evaluation questions; the
    "no-threshold safety return" at the end of the ladder is also ours (Fig. 5 does not
    define what happens when all three strategies fail).
+9. **Web-only hypothesis proposal is ours (Phase 6).** The paper reports a web-only
+   configuration but never says how per-hypothesis search terms are formed once the RAG
+   Analyzer is gone. Our `web` mode therefore makes one knowledge-based LLM call
+   (`rag_analyzer.propose_without_retrieval`) that proposes up to 3 candidate conditions
+   from the clinical input alone, falling back to the Clarifier's key concepts if the
+   model fails. Any web-only accuracy number is therefore *our* arm, not the paper's.
+10. **Per-diagnosis confidence rows are a deterministic rule (Phase 6).** Each report row
+    reuses the aggregate weights with the web terms evaluated for that one diagnosis
+    (base + 0.20·web + 0.20·concordance). The rows average to the aggregate confidence
+    only when condition names are unique (duplicate conditions would each get the same
+    web flag, so the mean can shift). The rule is ours; the paper asks for a confidence
+    per diagnosis but publishes no rule for how it is computed.

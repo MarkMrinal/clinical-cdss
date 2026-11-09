@@ -29,19 +29,19 @@
 | G-11 | Medical term boosting | **IMPLEMENTED (Phase 4, APPROXIMATION)** — paper algorithm unpublished; `_boost_query` documented as our interpretation |
 | G-12 | External evidence sources (Serper / Scholar / NICE) | **IMPLEMENTED (Phase 5)** — PubMed + **keyless NICE** + **Serper** with per-source failure isolation, source tags and derived web summaries; Google Scholar deliberately skipped (no official API) |
 | G-13 | Evidence classification & weighting | FULLY IMPLEMENTED (for disclosed rules) |
-| G-14 | Clinical fusion (cross-check, conflict, report) | PARTIALLY IMPLEMENTED |
-| G-15 | Confidence formula | CANNOT BE REPRODUCED (ours is a labeled heuristic) |
+| G-14 | Clinical fusion (cross-check, conflict, report) | **FULLY IMPLEMENTED (Phase 6)** — three named factors + per-diagnosis report rows |
+| G-15 | Confidence formula | CANNOT BE REPRODUCED (ours is a labeled heuristic, grouped onto the paper's three named §II-A-4 factors) |
 | G-16 | Adaptive optimization mechanics (τ, refine, re-query, stop) | FULLY IMPLEMENTED |
 | G-17 | Reflexive learning from case similarities | CANNOT BE REPRODUCED (mechanism unpublished) |
 | G-18 | Web interface (annotated report, trace, logs) | PARTIALLY IMPLEMENTED |
 | G-19 | Datasets MedQA / PubMedQA / MedBullets (n=50, scoring) | PARTIALLY IMPLEMENTED (samples ✓; PubMedQA/MedBullets runs not executed; MedBullets scoring differs from paper) |
 | G-20 | Baseline configuration | PARTIALLY IMPLEMENTED (our own plain-LLM arm; paper ran none) |
-| G-21 | RAG-only and web-only experiments | RAG-only FULLY · web-only NOT IMPLEMENTED |
+| G-21 | RAG-only and web-only experiments | **FULLY IMPLEMENTED (Phase 6)** — `rag` + `web` modes; runs pending Phase 7 |
 | G-22 | Iteration experiment (Table 6) | NOT IMPLEMENTED |
 | G-23 | Agent ablation experiment (Table 7) | NOT IMPLEMENTED |
 | G-24 | Evaluation metrics (micro P/R/F1, specificity, Table 5) | NOT IMPLEMENTED |
 | G-25 | Published results (94/88/84 …) | reported-only — never claim reproduction |
-| G-26 | Evaluation harness requirements (hashes, records, isolation) | PARTIALLY IMPLEMENTED |
+| G-26 | Evaluation harness requirements (hashes, records, isolation) | PARTIALLY IMPLEMENTED — Phase 6 added the evidence sidecar + `repl_` prefix |
 
 ---
 
@@ -141,22 +141,21 @@
 - **Our code:** `src/pubmed.py:91-110` `LEVEL_BY_PUBTYPE` (systematic review/meta-analysis/guideline=1, RCT/review/clinical trial=2, observational=3, case reports=4) + `weight = 1/level`, sorted best-first. **Phase 5 extends the same hierarchy to the new sources:** NICE guideline/quality standard/technology appraisal → 1, NICE evidence summary/advice → 2, other NICE → 3 (`src/nice.py::evidence_level`); Serper results linking to PubMed/PMC → 3 (`web_literature`, design unknown), all other web pages → 4 (`web_page`, below case reports because the study design is unverifiable). Matches every disclosed ordering rule.
 - **Missing:** nothing disclosable (numeric weights CANNOT BE REPRODUCED — paper gives none). Our web-page levels are a **documented conservative choice**, not the paper's (it publishes none). Source-credibility scoring is paper's own future work (§IV).
 
-### G-14 · Clinical fusion — **PARTIALLY IMPLEMENTED**
+### G-14 · Clinical fusion — **FULLY IMPLEMENTED** (Phase 6)
 - **Paper requires (§II-A-4, §II-C):** cross-validation of RAG vs web streams; conflict-detection protocol; calibrated confidence from RAG similarity + web evidence score + cross-stream concordance; semantic fusion into "best data"; structured report with evidence/source/confidence per diagnosis.
-- **Our code:** `src/fusion.py` — LLM extracts agreements/disagreements/unsupported claims/coverage/evidence gaps/summary (conflict detection ✓, cross-check ✓); deterministic components `retrieval_similarity`, `evidence_breadth`, `web_support` (token-overlap ≥0.5 rule, `:73-86`), `cross_source_agreement` (Jaccard-style, `:89-96`); selection stage in `pipeline.py::_select`.
-- **Missing:** exact paper calibration (see G-15); below-threshold *withholding* behavior (paper §II-C says sub-threshold data "not made available"; we instead trigger re-query — closer to §II-D; document choice).
-- **Files:** `src/fusion.py` (possible component alignment), `src/pipeline.py`.
-- **Feasible:** yes.
+- **Our code:** `src/fusion.py` — LLM extracts agreements/disagreements/unsupported claims/coverage/evidence gaps/summary (conflict detection ✓, cross-check ✓); deterministic components `retrieval_similarity`, `evidence_breadth`, `web_support` (token-overlap ≥0.5 rule), `cross_source_agreement` (Jaccard-style) **now grouped onto the paper's three named factors** in `confidence_factors` (each with the paper label, components, weights, contribution); `diagnoses[]` gives **evidence (`[R#]`/`[W#]`), source, confidence and a τ-flag per diagnosis**, exactly the §II-A-4 report contract, with no extra model call. `pipeline.py` puts those rows in the report the selection stage reads and in `log["report"]` (identical objects — they cannot drift).
+- **Below-threshold handling (§II-C "data below the threshold … not made available"), documented choice:** implemented at all three levels where the paper's text applies — (1) the Phase-4 τ=0.65 retrieval filter means sub-threshold passages never reach the RAG Analyzer; (2) each diagnosis carries `above_threshold` at τ; (3) a below-τ *combined* confidence triggers the §II-D feedback loop instead of silently deleting the evidence (the paper's own §II-D behaviour).
+- **Missing:** only the exact numeric calibration, which the paper never publishes (G-15).
 
-### G-15 · Confidence formula — **CANNOT BE REPRODUCED**
-- **Paper requires:** τ=0.65; confidence depends on RAG similarity, web evidence strength, cross-source concordance. **Formula/weights never published.**
-- **Our code:** `src/fusion.py:129-140` — `0.35·sim + 0.25·evidence_breadth + 0.20·web_support + 0.20·agreement`, explicitly labeled "replication heuristic", logged component-by-component.
-- **Missing:** the real formula (unobtainable). **Option (needs approval — changes pipeline behavior/numbers):** re-shape to the paper's three named factors only (drop or fold in `evidence_breadth`) so the component names mirror §II-A-4. Weights remain ours either way.
-- **Files:** `src/fusion.py`, docs. **Feasible:** approximation only; honest labeling required.
+### G-15 · Confidence formula — **CANNOT BE REPRODUCED** (anchored to the paper's named factors in Phase 6)
+- **Paper requires:** τ=0.65; confidence depends on RAG similarity, web evidence strength, cross-stream concordance. **Formula/weights never published.**
+- **Our code:** `src/fusion.py` — `0.35·sim + 0.25·evidence_breadth + 0.20·web_support + 0.20·agreement`, explicitly labeled ours in `confidence_method`, logged component-by-component. Phase 6 maps it onto the paper's three named §II-A-4 factors (`rag_similarity` / `web_evidence_score` / `cross_stream_concordance`) in `confidence_factors`.
+- **Decision:** the earlier "re-shape to three factors" option was executed **without changing a single number** — the four components are *grouped* under the three factor names (the sum is the same left-to-right expression), so no numeric approval was needed and no published result moved; `evidence_breadth` stays as a sub-component of `rag_similarity`. Weights remain ours.
+- **Missing:** the real formula (unobtainable). **Files:** `src/fusion.py`, docs. **Feasible:** approximation only; honest labeling required.
 
 ### G-16 · Adaptive optimization mechanics — **FULLY IMPLEMENTED**
 - **Paper requires (§II-D, §II-A-5):** τ=0.65; feedback = structured recommendations (not blind retry); restructure failed queries; alternative queries for missing symptoms; guidance to **both** RAG and Scanner; stop at τ or max 3 iterations.
-- **Our code:** `src/optimizer.py` (diagnose-why + refined query + focus terms, anti-repetition rules), `src/pipeline.py:128-166` (loop, `stop_reason` = threshold_met / iteration_limit / low_confidence_requery, `MAX_ITERS=3`, `TAU=0.65`), refined query + focus injected into `clinical` for the next RAG/Scanner pass (`:162-166`). Scanner queries derive from the hypotheses → indirectly guided ✓.
+- **Our code:** `src/optimizer.py` (diagnose-why + `focus` + **`query_action ∈ {keywords, expand, reduce, rewrite}`** — the paper's "keyword changes, query expansion/reduction" — + refined query, anti-repetition rules; the returned dict *is* the paper's "feedback report"), `src/pipeline.py` (loop driven by `optimizer.should_optimize()`, `stop_reason` = threshold_met / iteration_limit / low_confidence_requery, `MAX_ITERS=3`, `TAU=0.65`), refined query → the RAG Analyzer's `retrieval_query` and `focus` → the Clarifier `key_concepts` that the Scanner reads, so **both** downstream agents receive the guidance as §II-A-5 requires.
 - **Missing:** nothing disclosed. (Cross-case learning = G-17.)
 
 ### G-17 · Reflexive behavior / learning from case similarities — **CANNOT BE REPRODUCED**
@@ -184,12 +183,13 @@
 - **Missing:** nothing runnable can be "reproduced" here (paper gave no internal baseline protocol). Keep our arm, documented as **our addition**, and never equate it with Table 4 numbers.
 - **Files:** `evaluation/run_eval.py` (already supports `--modes baseline`).
 
-### G-21 · RAG-only and web-only experiments — **RAG-only FULLY · web-only NOT IMPLEMENTED**
+### G-21 · RAG-only and web-only experiments — **FULLY IMPLEMENTED** (Phase 6; runs pending Phase 7)
 - **Paper requires:** RAG-only = no Scanner/Fusion (Table 7 "no Scanner"=RAG-only 70.0? — careful: §II-C names *RAG-only 65.0* and *web-only 70.0*, but Table 7 shows no-RAG-Analyzer=65.0 and no-Scanner=70.0; §II-C's labels are swapped relative to Table 7. Implement both arms as **agent-removal variants** (G-23) and report both labels with this caveat).
-- **Our code:** `mode="rag"` exists (`pipeline.py:109-121`). **No web-only mode** (Clarifier → Scanner → Fusion with empty RAG stream → selection).
-- **Missing:** `mode="web"` in `pipeline.py` + `--modes web` support (already generic) — must handle empty-RAG gracefully in `fusion.py::_fmt_rag` (returns "(no RAG evidence)" ✓ already).
-- **Files:** `src/pipeline.py`, `evaluation/run_eval.py` (mode list docs).
-- **Feasible:** yes, small.
+- **Our code:** `mode="rag"` exists (single-pass, no fusion). **`mode="web"` added in Phase 6** (`pipeline.py`): Clarifier → knowledge-based hypothesis proposal (`rag_analyzer.propose_without_retrieval`, 1 LLM call with Clarifier-key-concept fallback) → Evidence Scanner (PubMed + NICE + Serper) → selection. Single-pass by design — no local index is touched (`n_passages=0`, no retrieval trace) and with one stream there is nothing for Fusion to cross-check, so it is symmetric with the `rag` arm; `confidence=None` as in the other ablation arm. Wired through `main.py --mode web`, `run_eval --modes` (all four by default) and `summarize_eval`.
+- **Documented choice:** the paper never states how its web-only configuration forms per-hypothesis search terms once the RAG Analyzer is gone — that proposal call is ours (recorded as a deviation, README §13).
+- **Remaining:** executing the runs (Phase 7, gated on API-spend approval).
+- **Files:** `src/pipeline.py`, `src/rag_analyzer.py`, `main.py`, `evaluation/run_eval.py`, `scripts/summarize_eval.py`.
+- **Feasible:** done; small.
 
 ### G-22 · Iteration experiment (Table 6) — **NOT IMPLEMENTED**
 - **Paper requires:** 20 MedQA questions at iteration counts 1→5, accuracy + processing time per count (86.3→95.5%, 2.5→5.5 min); exact-match A–E; averages reported (± basis unstated).
@@ -200,7 +200,7 @@
 
 ### G-23 · Agent ablation experiment (Table 7) — **NOT IMPLEMENTED**
 - **Paper requires:** remove one component at a time, same 20 MedQA questions: Clarifier 80.0, RAG Analyzer 65.0, Scanner 70.0, Fusion 60.0, Optimizer 70.0, Term Boosting 80.0.
-- **Our code:** no ablation flags anywhere (grep-verified). Closest: 3-mode eval (baseline/rag/full).
+- **Our code:** no agent-removal ablation flags anywhere (grep-verified). Closest: 4-mode eval (baseline/rag/web/full — the `web` arm was added in Phase 6).
 - **Missing:** `--ablate {clarifier,rag,scanner,fusion,optimizer,term_boost}` wiring: pipeline must be able to skip/replace each agent (e.g., clarifier_off → pass raw question as clinical dict; rag_off → empty hypotheses but still scan; scanner_off → empty web; fusion_off → confidence from RAG only / skip conflict report; optimizer_off → hard stop after iteration 1 with no re-query; term_boost_off → needs G-11 flag first) + eval mode labels + same-20-ID guarantee.
 - **Files:** `src/pipeline.py`, `src/retrieval.py` (boost flag), `evaluation/run_eval.py`, `src/config.py`.
 - **Feasible:** yes, moderate work. **API cost:** 6 arms × 20 q ≈ 120 case-runs → **ask approval before running**.
@@ -215,11 +215,12 @@
 ### G-25 · Published results — **reported-only**
 94/88/84, Table 4–7 values are the paper's. We reproduce **protocol**, never the numbers, unless our results genuinely support them. Our prototype result stays clearly separated: baseline 17/20, RAG 17/20, full 18/20 (MedQA n=20, 2026-10-26).
 
-### G-26 · Evaluation harness requirements (project §6) — **PARTIALLY IMPLEMENTED**
-- **Already done:** same frozen IDs across modes ✓ · gold isolated from prompts ✓ (gold letter/answer never sent) · per-question correctness ✓ · confidence + iteration counts ✓ · latency ✓ · error rows recorded, never dropped ✓ · timestamps ✓ · dataset sha256 + full run config in JSON ✓ (`run_eval.py:147-163`) · temperature 0 + prompt-hash LLM cache ✓.
-- **Missing:** (a) **retrieval/evidence records per eval question** — `save_log=False` in eval (`:51`) so no per-question evidence is kept; add a sidecar `repl_eval_<stamp>_evidence.jsonl` (or opt-in logs). (b) **New results must be visually distinguishable from prototype results** — current naming `eval_medqa_<stamp>` risks mixing with the 2026-10-26 files; use prefix `repl_` (or `results/replication/`) for all new runs. (c) Dataset hash for *all three* sample files at run start (currently hashes only the selected dataset — fine, but keep). (d) Worker concurrency vs local Qdrant single-process: stress-tested 16/16 PASS, keep `--workers 4`.
+### G-26 · Evaluation harness requirements (project §6) — **PARTIALLY IMPLEMENTED** (Phase 6 closed (a) and (b))
+- **Already done:** same frozen IDs across modes ✓ · gold isolated from prompts ✓ (gold letter/answer never sent) · per-question correctness ✓ · confidence + iteration counts ✓ · latency ✓ · error rows recorded, never dropped ✓ · timestamps ✓ · dataset sha256 + full run config in JSON ✓ · temperature 0 + prompt-hash LLM cache ✓.
+- **Closed in Phase 6 — (a) evidence records per eval question:** per-question **evidence sidecar** `repl_eval_<dataset>_<stamp>_evidence.jsonl` — one line per (question, mode) with the passages consumed, external records (title/URL/source/evidence level), Fig. 5 fallback rungs, stop reasons, optimizer feedback, confidence factors, per-diagnosis rows, search failures and the per-agent model trace; plus new CSV evidence columns `n_passages`, `n_web_records`, `evidence_sources`; `--evidence 0` disables the sidecar. **(b) new results visually distinguishable:** every new CSV/JSON/sidecar now uses the **`repl_` prefix**, so replication runs can never be mixed up with the frozen prototype benchmark (`eval_medqa_20261026_*`).
+- **Remaining:** (c) dataset hash for *all three* sample files — only the selected dataset is hashed per run (fine); the PubMedQA/MedBullets hashes get recorded when Phase 7 runs them. (d) worker concurrency vs local Qdrant single-process: stress-tested 16/16 PASS, keep `--workers 4`.
 - **Files:** `evaluation/run_eval.py`, `.gitignore` (whitelist new result files if they should be committed).
-- **Feasible:** yes.
+- **Feasible:** yes — (a)/(b) done.
 
 ---
 
@@ -240,8 +241,8 @@
 | **3** | Clarifier: staged schema (entities with paper's 4 classes + associations) + ICD-10-CM coding via NLM free API (SNOMED deferred pending license decision) | `clarifier.py`, new `coding.py` | NLM API (free, no key) | schema validates; downstream agents still run; demo case replays |
 | **4** | RAG: term boosting (labeled approximation), Fig-5 fallback order (threshold reduction → simplify → remove symptoms), docstring fix, chunk-length metadata, optional Symptom-Disease dataset as **new** collection | `retrieval.py`, `rag_analyzer.py`, `config.py`, new `scripts/fetch_symptoms.py` | HF dataset (free) | retrieval smoke tests + `eval_retrieval.py` comparison old vs new (old index untouched) |
 | **5** | Scanner: Serper source (**only if you register a free key**), optional NICE page fetch, multi-source fan-out with per-source failure isolation | new `src/serper.py`, `evidence_scanner.py` | Serper free tier (user-registered) | scanner returns PubMed-only when key absent; no crash paths |
-| **6** | Fusion/optimizer: components mirror paper's three named factors (weights stay ours, labeled), guidance report content review, `mode="web"` added | `fusion.py`, `optimizer.py`, `pipeline.py` | none | full-mode regression: same 20 IDs, cached prompts where unchanged |
-| **7** | Evaluation: micro metrics (G-24), web-only mode (G-21), ablation flags (G-23), iteration sweep (G-22), MedBullets free-text scoring (G-19), evidence sidecar + `repl_` prefix (G-26) — **runs executed after your approval of API spend** | `run_eval.py`, new `scripts/run_iter_sweep.py`, `pipeline.py` | flash-lite API calls (est. ~1,500–2,500 calls total) | metric unit tests on synthetic rows; then n=20 MedQA canary |
+| **6** | Fusion/optimizer: components mirror paper's three named factors (weights stay ours, labeled), guidance report content review, `mode="web"` added | ✅ **DONE (2026-11-10)** — `fusion.py`, `optimizer.py`, `pipeline.py`, `rag_analyzer.py` | none | **59/59 tests PASS**; full-mode regression on the same 20 IDs: **18/20, every prediction identical to the prototype run**, 0 errors (`repl_eval_medqa_20261110_001343.*`); cache gate: untouched prompts still hit the Phase-5 cache, repeat run 100% cached |
+| **7** | Evaluation: micro metrics (G-24), web-only mode (G-21), ablation flags (G-23), iteration sweep (G-22), MedBullets free-text scoring (G-19), evidence sidecar + `repl_` prefix (G-26) — **runs executed after your approval of API spend** | ⏭️ **NEXT — harness already built in Phase 6** (4 modes, evidence sidecar, `repl_` outputs, metric summarizer) | `run_eval.py`, new `scripts/run_iter_sweep.py`, `pipeline.py` | flash-lite API calls (est. ~1,500–2,500 calls total; Serper cache already warm for the MedQA 20) | metric unit tests on synthetic rows; then n=20 MedQA canary |
 | **8** | Web report: aggregate sources + "sources of variation", per-hypothesis High/Mod/Low tiers (Fig. 6), keep prototype labeling | `web_demo.py`, `web/index.html`, `pipeline.py` | none | manual demo + saved-case replay |
 | **9** | Final: README rewrite, `REPLICATION_PROGRESS.md` final status, deviation ledger, honest results table | README, docs | none | docs match code (spot-check) |
 

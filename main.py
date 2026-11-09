@@ -3,6 +3,7 @@
   python main.py --question "A 45-year-old man presents with fever, cough and fatigue..."
   python main.py --case medqa_12
   python main.py --question "..." --mode rag
+  python main.py --question "..." --mode web     # external evidence only (ablation arm)
 """
 from __future__ import annotations
 
@@ -32,7 +33,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--question")
     ap.add_argument("--case")
-    ap.add_argument("--mode", default="full", choices=["baseline", "rag", "full"])
+    ap.add_argument("--mode", default="full", choices=["baseline", "rag", "web", "full"])
     args = ap.parse_args()
 
     if args.case:

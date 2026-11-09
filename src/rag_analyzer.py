@@ -48,6 +48,82 @@ def format_passages(passages: list[dict]) -> str:
     return "\n\n".join(lines)
 
 
+WEB_HYPOTHESES_PROMPT = """You are the hypothesis-generation stage of a clinical decision support system.
+No retrieval index is available in this configuration, so propose the candidate conditions
+directly from the clinical input using standard clinical reasoning.
+
+Return ONLY this JSON:
+{{
+  "hypotheses": [
+    {{"condition": "name", "rationale": "one sentence"}}
+  ],
+  "uncertainties": ["what the input does not settle"]
+}}
+
+Rules:
+- Maximum 3 hypotheses, ordered by likelihood.
+- Use ONLY facts present in the input; never invent a patient fact.
+- Conditions must be specific enough to search the medical literature for
+  (e.g. "community-acquired pneumonia", not "infection").
+
+CLINICAL INPUT:
+{clinical}
+"""
+
+
+def propose_without_retrieval(clinical: dict[str, Any]) -> list[dict[str, Any]]:
+    """Web-only ablation arm (mode="web"): the RAG Analyzer's hypothesis role
+    WITHOUT the local index.
+
+    The paper reports a web-only configuration (Sec. II-C) and a "no RAG Analyzer"
+    ablation arm (Table 7) but never states how per-hypothesis search terms are
+    formed once the RAG Analyzer is gone, so this single knowledge-based LLM call
+    is a documented replication choice. It mirrors analyze()'s output shape
+    (condition/rationale/evidence_ids/evidence) with empty evidence lists, so the
+    Evidence Scanner and the report renderer work unchanged. On failure it falls
+    back to the Clarifier's key concepts, so the scanner always has something to
+    search for.
+    """
+    try:
+        data = generate_json(
+            WEB_HYPOTHESES_PROMPT.format(
+                clinical=json.dumps(clinical, ensure_ascii=False)
+            ),
+            agent="rag_analyzer",
+        )
+    except Exception as exc:  # noqa: BLE001 - degrade, never break the case
+        print(f"[warn] web-mode hypothesis proposal failed: {exc}")
+        data = None
+
+    out: list[dict[str, Any]] = []
+    for h in (data or {}).get("hypotheses", [])[:3]:
+        cond = str(h.get("condition", "")).strip()
+        if cond:
+            out.append(
+                {
+                    "condition": cond,
+                    "rationale": str(h.get("rationale", "")).strip(),
+                    "evidence_ids": [],
+                    "evidence": [],
+                }
+            )
+
+    if not out:
+        fallback = [
+            str(c).strip() for c in clinical.get("key_concepts") or [] if str(c).strip()
+        ][:3]
+        out = [
+            {
+                "condition": c,
+                "rationale": "Clarifier key concept (hypothesis proposal unavailable)",
+                "evidence_ids": [],
+                "evidence": [],
+            }
+            for c in fallback
+        ]
+    return out
+
+
 def analyze(clinical: dict[str, Any]) -> dict[str, Any]:
     query = clinical.get("retrieval_query") or " ".join(clinical.get("symptoms") or [])
     symptoms = [str(s) for s in clinical.get("symptoms") or [] if str(s).strip()]

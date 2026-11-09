@@ -2,6 +2,17 @@
 
 Triggers only when confidence < tau and the iteration budget is not exhausted.
 Produces a semantically revised query plus a reason, never a blind retry.
+
+The paper's optimizer "identifies untrustworthy data and intelligently reorganizes
+query parameters, including keyword changes, query expansion/reduction, and other
+key points to investigate, generating a feedback report" (Sec. II-A-5). Our
+`optimize()` returns exactly that report as a dict - `reason` (what was missing or
+conflicting), `focus` (the key points to investigate), `query_action` (how the
+query was reorganized: keywords / expand / reduce / rewrite) and `refined_query`.
+The pipeline feeds it to BOTH downstream agents, as the paper requires: the
+refined_query becomes the RAG Analyzer's `retrieval_query` and `focus` replaces the
+Clarifier's `key_concepts`, which the Evidence Scanner reads when writing its
+per-hypothesis queries.
 """
 from __future__ import annotations
 
@@ -18,12 +29,16 @@ Return ONLY this JSON:
 {{
   "reason": "what was missing or conflicting",
   "focus": ["the specific clinical angles to investigate next"],
+  "query_action": "keywords | expand | reduce | rewrite",
   "refined_query": "a new 8-15 word biomedical search query, meaningfully different from the previous one"
 }}
 
 Rules:
 - Do not repeat the previous query with trivial wording changes.
 - Expand to differential diagnoses, risk factors, or distinguishing findings when that is what is missing.
+- query_action says HOW the query was reorganized: "keywords" when the key terms
+  themselves had to change, "expand" when concepts were added, "reduce" when the
+  query was too broad and had to be narrowed, "rewrite" for a structural rewrite.
 - Never invent patient facts.
 
 QUESTION: {question}
@@ -38,8 +53,11 @@ RAG HYPOTHESES: {hypotheses}
 WEB QUERIES TRIED: {web_queries}
 """
 
+ACTIONS = ("keywords", "expand", "reduce", "rewrite")
+
 
 def should_optimize(confidence: float, iteration: int, tau: float, max_iters: int) -> bool:
+    """Paper Sec. II-D: keep looping while confidence < tau AND iterations < 3."""
     return confidence < tau and iteration < max_iters
 
 
@@ -76,8 +94,12 @@ def optimize(
         agent="optimizer",
     )
     out = data or {}
+    action = str(out.get("query_action") or "").strip().lower()
+    if action not in ACTIONS:  # a model that invents an action is normalised
+        action = "rewrite"
     return {
         "reason": out.get("reason", ""),
         "focus": out.get("focus", []),
+        "query_action": action,
         "refined_query": out.get("refined_query") or rag.get("query_used", ""),
     }

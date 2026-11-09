@@ -23,6 +23,19 @@ from qdrant_client import QdrantClient  # noqa: E402
 PAGE = 1000       # scroll page size (local)
 BATCH = 256       # upsert batch size (cloud)
 
+from qdrant_client import models as qm  # noqa: E402
+
+
+def _cfg_dict(cfg, cls):
+    """Local (embedded) engine config models do not validate as the remote
+    CreateCollection diff models - dump to a plain dict keeping only the
+    fields the target model knows about (HnswConfig -> HnswConfigDiff)."""
+    if cfg is None:
+        return None
+    data = cfg.model_dump() if hasattr(cfg, "model_dump") else dict(cfg)
+    out = {k: v for k, v in data.items() if k in getattr(cls, "model_fields", {})}
+    return out or None
+
 
 def _to_points(records) -> list[dict]:
     return [
@@ -46,13 +59,22 @@ def ensure_collection(cloud: QdrantClient, name: str, linfo) -> None:
             return
         print(f"  [{name}] cloud collection config MISMATCH - recreating from local")
         cloud.delete_collection(name)
-    cloud.create_collection(
-        collection_name=name,
-        vectors_config=linfo.config.params.vectors,
-        hnsw_config=linfo.config.hnsw_config,
-        on_disk_payload=linfo.config.params.on_disk_payload,
-        quantization_config=linfo.config.quantization_config,
-    )
+    try:
+        cloud.create_collection(
+            collection_name=name,
+            vectors_config=linfo.config.params.vectors,
+            hnsw_config=_cfg_dict(linfo.config.hnsw_config, qm.HnswConfigDiff),
+            on_disk_payload=linfo.config.params.on_disk_payload,
+            quantization_config=linfo.config.quantization_config,
+        )
+    except Exception as exc:  # noqa: BLE001 - fall back to server defaults
+        print(f"  [{name}] create with local tuning failed ({type(exc).__name__}); "
+              f"retrying with server-default HNSW/quantization")
+        cloud.create_collection(
+            collection_name=name,
+            vectors_config=linfo.config.params.vectors,
+            on_disk_payload=linfo.config.params.on_disk_payload,
+        )
     print(f"  [{name}] created on cloud with local config")
 
 

@@ -106,7 +106,7 @@ Speaker note: every passage keeps its PMID or textbook title, so any answer can 
 | 1,000 PDFs / 200k chunks / 18M embeddings | 2,784 PubMed abstracts + 13,691 textbook passages = **24,935 chunks** | free, citable; paper's counts are internally inconsistent |
 | Serper + Scholar + NICE | PubMed E-utilities | no paid search API; PubMed is the paper's own primary source |
 | CrewAI | explicit Python pipeline | debuggable, no hidden agent turns |
-| SNOMED CT / ICD-10 | LLM extraction only | licence |
+| SNOMED CT / ICD-10 | **ICD-10-CM live via the free NLM API** (Phase 3); SNOMED CT deferred | SNOMED licence |
 | confidence formula (not published) | documented heuristic | paper gives only τ = 0.65 |
 | ≤ 3 feedback cycles | 2 cycles in the timed eval | API at 22–33 s/call |
 
@@ -119,8 +119,8 @@ results slide.
 
 | Check | Result |
 |---|---|
-| Knowledge base | 24,935 chunks, 768-d, cosine; two collections |
-| Retrieval | dual-collection RRF; textbook share of top-5 = **40%** |
+| Knowledge base | 24,935 chunks at the 26 Oct milestone → **34,206** after replication Phase 4, 768-d, cosine; two collections → **three** (+ `symptom_disease`) |
+| Retrieval | dual-collection RRF; textbook share of top-5 = **40%** (Phase 4 adds τ=0.65 filtering + the Fig. 5 fallback ladder) |
 | Live evidence | PubMed scanner returns **4 records per condition** (after fixing over-long AND queries) |
 | Single MedQA case (`medqa_347`) | **correct** (A, primary hyperparathyroidism), confidence **0.8577**, 1 iteration, **100.6 s** |
 | Adaptive MedQA case (`medqa_107`) | first pass: 0 hypotheses, 0 PubMed records, confidence **0.4499** → optimizer rewrote the query → second pass: Klinefelter hypothesis, 4 records, confidence **0.8277**, **correct** (A), 2 iterations |

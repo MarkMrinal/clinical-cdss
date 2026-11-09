@@ -50,8 +50,19 @@ def format_passages(passages: list[dict]) -> str:
 
 def analyze(clinical: dict[str, Any]) -> dict[str, Any]:
     query = clinical.get("retrieval_query") or " ".join(clinical.get("symptoms") or [])
-    simplified = " ".join((clinical.get("key_concepts") or clinical.get("symptoms") or [])[:6])
-    passages, trace = search_with_fallback(query, simplified_query=simplified or None)
+    symptoms = [str(s) for s in clinical.get("symptoms") or [] if str(s).strip()]
+    concepts = [str(c) for c in clinical.get("key_concepts") or [] if str(c).strip()]
+    # Paper Table 2: term boosting is Active on the user-supplied terms.
+    # _boost_query() drops negated terms ("no ...") and caps at 5 terms / 400 chars.
+    boost_terms = concepts + symptoms
+    # Strategy 2 (Fig. 5): a concept-level query with the symptom prose removed.
+    simplified = " ".join((concepts or symptoms)[:6])
+    passages, trace = search_with_fallback(
+        query,
+        simplified_query=simplified or None,
+        boost_terms=boost_terms,
+        symptom_terms=symptoms,
+    )
 
     data = generate_json(
         PROMPT.format(

@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import functools
+import re
 import threading
+import time
 from typing import Any
 
 from . import config
@@ -65,6 +67,8 @@ def embed_one(text: str) -> list[float]:
 def _search_collection(client, name: str, vector: list[float], top_k: int):
     try:
         try:
+            # score_threshold is applied client-side below (version-proof and
+            # works in embedded mode); we just over-fetch candidates here.
             res = client.query_points(
                 collection_name=name, query=vector, limit=top_k, with_payload=True
             )
@@ -83,16 +87,25 @@ def _rrf(rank: int, k: int = 60) -> float:
     return 1.0 / (k + rank)
 
 
-def _raw_search(vector: list[float], top_k: int) -> list[dict]:
+def _raw_search(
+    vector: list[float], top_k: int, score_threshold: float | None = None
+) -> list[dict]:
     client = _get_client()
+    # Over-fetch when a threshold is active so filtering cannot starve top_k.
+    fetch_k = top_k if score_threshold is None else min(top_k * 5, 100)
     per_collection: dict[str, list] = {}
     with _qdrant_lock:
         for name in config.COLLECTIONS:
-            per_collection[name] = _search_collection(client, name, vector, top_k)
+            per_collection[name] = _search_collection(client, name, vector, fetch_k)
 
     merged: dict[str, dict] = {}
     best_by_collection: dict[str, str] = {}
     for name, pts in per_collection.items():
+        # Paper II-B-2 / Table 2: passages below the similarity threshold tau
+        # are not admissible evidence. Filtering is done client-side so it works
+        # identically in embedded and cloud Qdrant.
+        if score_threshold is not None:
+            pts = [p for p in pts if float(p.score) >= score_threshold]
         if pts:
             best_by_collection[name] = str(pts[0].id)
         for rank, p in enumerate(pts, 1):
@@ -135,40 +148,136 @@ def _raw_search(vector: list[float], top_k: int) -> list[dict]:
                 "source": pl.get("source", ""),
                 "topic": pl.get("topic", ""),
                 "pmid": pl.get("pmid", ""),
+                # paper Table 2 / Sec. II-B-2: evidence carries document info
+                "length": pl.get("length", len(pl.get("text", ""))),
             }
         )
     return out
 
 
-def search(query: str, top_k: int | None = None) -> list[dict]:
+def search(
+    query: str, top_k: int | None = None, score_threshold: float | None = None
+) -> list[dict]:
     top_k = top_k or config.TOP_K
-    return _raw_search(embed_one(query), top_k)
+    return _raw_search(embed_one(query), top_k, score_threshold=score_threshold)
+
+
+def _boost_query(query: str, boost_terms: list[str] | None) -> str:
+    """Paper Table 2 'term boosting: Active'.
+
+    The paper never publishes the algorithm, so this is our documented
+    approximation: append priority terms that are ABSENT from the query, repeat
+    terms that are already present once (frequency boost), never boost negated
+    terms ('no ...', 'denies', 'without'), at most 5 terms / 400 chars total.
+    """
+    if not boost_terms or not config.TERM_BOOST:
+        return query
+    q = query.lower()
+    out = query
+    added = 0
+    seen: set[str] = set()
+    for raw in boost_terms:
+        term = " ".join(str(raw or "").split())
+        low = term.lower()
+        if len(term) < 3 or low in seen:
+            continue
+        if low.startswith(("no ", "denies", "without", "negative for", "not ")):
+            continue  # never boost negations (paper: 'no ...' terms stay out)
+        if added >= 5 or len(out) + len(term) + 1 > 400:
+            break
+        seen.add(low)
+        out = f"{out} {term}"  # present terms get repeated, absent ones appended
+        added += 1
+    return out
+
+
+def _strip_terms(query: str, terms: list[str] | None) -> str:
+    """Remove symptom phrases from the query (Fig. 5, Strategy 3)."""
+    out = query
+    for raw in terms or []:
+        term = " ".join(str(raw or "").split())
+        if len(term) < 3:
+            continue
+        out = re.sub(rf"\b{re.escape(term)}\b", " ", out, flags=re.IGNORECASE)
+    return " ".join(out.split())
 
 
 def search_with_fallback(
-    query: str, simplified_query: str | None = None, top_k: int | None = None
+    query: str,
+    simplified_query: str | None = None,
+    top_k: int | None = None,
+    boost_terms: list[str] | None = None,
+    symptom_terms: list[str] | None = None,
 ) -> tuple[list[dict], dict]:
-    """Paper II-B-2: three-level fallback (lower threshold -> simplify -> widen k)."""
+    """Paper Fig. 5 retrieval loop with its ordered fallback strategies.
+
+    boosting (Table 2) -> search at tau=0.65 -> Strategy 1 threshold reduction
+    (0.55, then 0.45) -> Strategy 2 query simplification @0.45 -> Strategy 3
+    remove symptoms @0.45 -> final no-threshold safety return (so the pipeline
+    never receives zero passages).
+
+    The rungs 0.65/0.55/0.45 come from Table 2 (tau=0.65) and Fig. 5
+    annotations; they are NOT tuned against evaluation questions.
+    """
     top_k = top_k or config.TOP_K
-    trace = {"query": query, "levels": []}
+    t0 = time.perf_counter()
+    tau = config.RETRIEVAL_THRESHOLD
+    boosted = _boost_query(query, boost_terms)
+    vec_cache: dict[str, list[float]] = {}
+    trace: dict[str, Any] = {
+        "query": query,
+        "boosted_query": boosted,
+        "levels": [],
+        "retrieval_ms": 0.0,
+    }
 
-    hits = _raw_search(embed_one(query), top_k)
-    best = max((h["score"] for h in hits), default=0.0)
-    trace["levels"].append({"level": 1, "strategy": "exact_rrf", "best_score": best})
-
-    if best < 0.50:
-        hits = _raw_search(embed_one(query), top_k * 2)
-        best = max((h["score"] for h in hits), default=0.0)
+    def attempt(strategy: str, q: str, threshold: float | None) -> list[dict]:
+        t = time.perf_counter()
+        if q not in vec_cache:  # same query is tried at several rungs: embed once
+            vec_cache[q] = embed_one(q)
+        hits = _raw_search(vec_cache[q], top_k, score_threshold=threshold)
         trace["levels"].append(
-            {"level": 2, "strategy": "widened_k", "best_score": best}
+            {
+                "level": len(trace["levels"]) + 1,
+                "strategy": strategy,
+                "threshold": threshold,
+                "n_hits": len(hits),
+                "best_score": round(max((h["score"] for h in hits), default=0.0), 4),
+                "query_used": q[:300],
+                "ms": round((time.perf_counter() - t) * 1000, 1),
+            }
         )
-        hits = hits[:top_k]
+        return hits
 
-    if best < 0.40 and simplified_query:
-        hits = _raw_search(embed_one(simplified_query), top_k)
-        best = max((h["score"] for h in hits), default=0.0)
-        trace["levels"].append(
-            {"level": 3, "strategy": "simplified", "best_score": best}
-        )
+    # 1) term-boosted search at the paper's threshold
+    hits = attempt("boosted_search", boosted, tau)
+    if hits:
+        trace["retrieval_ms"] = round((time.perf_counter() - t0) * 1000, 1)
+        return hits, trace
 
+    # Strategy 1 - threshold reduction (Fig. 5: 0.55 -> 0.45)
+    for rung in (0.55, 0.45):
+        hits = attempt(f"threshold_reduction@{rung}", boosted, rung)
+        if hits:
+            trace["retrieval_ms"] = round((time.perf_counter() - t0) * 1000, 1)
+            return hits, trace
+
+    # Strategy 2 - query simplification
+    if simplified_query:
+        hits = attempt("simplify_query", simplified_query, 0.45)
+        if hits:
+            trace["retrieval_ms"] = round((time.perf_counter() - t0) * 1000, 1)
+            return hits, trace
+
+    # Strategy 3 - remove symptom phrases from the query
+    stripped = _strip_terms(boosted, symptom_terms)
+    if stripped and stripped != boosted:
+        hits = attempt("remove_symptoms", stripped, 0.45)
+        if hits:
+            trace["retrieval_ms"] = round((time.perf_counter() - t0) * 1000, 1)
+            return hits, trace
+
+    # Safety return - no threshold, so downstream stages always get evidence
+    hits = attempt("no_threshold_safety", boosted, None)
+    trace["retrieval_ms"] = round((time.perf_counter() - t0) * 1000, 1)
     return hits, trace

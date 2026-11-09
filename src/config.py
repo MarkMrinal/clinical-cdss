@@ -24,7 +24,10 @@ EMBED_MODEL = os.getenv(
     "EMBED_MODEL", "pritamdeka/BioBERT-mnli-snli-scinli-scitail-mednli-stsb"
 )
 COLLECTION = "biomedical"
-COLLECTIONS = ["biomedical", "textbooks"]  # paper: textbooks + guidelines + literature
+# paper: textbooks + guidelines + literature; Phase 4 adds the public
+# Symptom-Disease Dataset (paper ref [30]) as its own collection - new sources
+# always get a NEW collection name, existing ones are never rewritten.
+COLLECTIONS = ["biomedical", "textbooks", "symptom_disease"]
 TAU = float(os.getenv("TAU", "0.65"))          # paper: confidence threshold
 THETA = float(os.getenv("THETA", "0.80"))      # paper: free-text correctness threshold
 MAX_ITERS = int(os.getenv("MAX_ITERS", "3"))    # paper: max optimisation cycles
@@ -32,6 +35,13 @@ CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "512"))
 CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "64"))
 TOP_K = int(os.getenv("TOP_K", "5"))
 WEB_MAX_RECORDS = int(os.getenv("WEB_MAX_RECORDS", "4"))
+
+# --- Retrieval (replication Phase 4, paper Table 2 / Fig. 5) ------------------
+# tau for EVIDENCE selection (distinct from TAU, which is the confidence gate).
+RETRIEVAL_THRESHOLD = float(os.getenv("RETRIEVAL_THRESHOLD", "0.65"))
+# Table 2 reports "term boosting: Active". The algorithm is unpublished, so
+# _boost_query() implements a documented approximation (see src/retrieval.py).
+TERM_BOOST = os.getenv("TERM_BOOST", "1") == "1"
 # Let the scanner build PubMed queries with the LLM (paper: Qwen) or by rule.
 # Set to 0 if the API is rate-limited: saves up to 3 calls per iteration.
 SCANNER_LLM_QUERY = os.getenv("SCANNER_LLM_QUERY", "1") == "1"

@@ -31,7 +31,7 @@ What this project **is not**:
 1. Accepts a clinical question (multiple-choice item or free text).
 2. **Clarifier** turns the text into structured fields (symptoms, tests, concepts,
    a search query).
-3. **RAG Analyzer** searches a local 24,935-chunk medical index with BioBERT embeddings
+3. **RAG Analyzer** searches a local 34,206-chunk medical index with BioBERT embeddings
    and proposes hypotheses that must cite a retrieved passage.
 4. **Evidence Scanner** searches PubMed live for each candidate condition and tags each
    record with an evidence level.
@@ -141,10 +141,12 @@ GROQ_API_KEY=...                    # keys only in .env, never committed
 | Vector store | Qdrant, embedded/local mode (single process) |
 | Chunking (PubMed) | 512 tokens, 64 overlap (as reported in the paper) |
 | Chunking (textbooks) | native paragraph segmentation (passage-sized already; documented deviation) |
-| Collections | `biomedical` (11,244) + `textbooks` (13,691) |
-| Fusion | Reciprocal Rank Fusion (RRF, k=60) across both collections |
-| Quota | at least the best passage from each collection, so Fusion always sees two streams |
-| Fallback | 3 levels: exact → widen k → simplified query (`search_with_fallback`) |
+| Collections | `biomedical` (11,244) + `textbooks` (13,691) + `symptom_disease` (9,271) |
+| Fusion | Reciprocal Rank Fusion (RRF, k=60) across all collections |
+| Quota | at least the best passage from each collection, so Fusion always sees independent streams |
+| Similarity threshold τ | 0.65 for evidence selection (`RETRIEVAL_THRESHOLD`), enforced client-side |
+| Term boosting | Active (Table 2) — documented approximation in `_boost_query()`: append absent priority terms, repeat present ones once, never boost "no …" negations, max 5 terms / 400 chars |
+| Fallback (Fig. 5) | boosted search @0.65 → threshold reduction (0.55, 0.45) → simplify query @0.45 → remove symptoms @0.45 → no-threshold safety return (`search_with_fallback`) |
 | top-k | 5 |
 
 BioBERT is the **retriever only** — it converts text to vectors. It never writes the
@@ -152,7 +154,7 @@ answer; the Gemini model does that from the retrieved evidence.
 
 ## 6. Knowledge base and dataset sources
 
-**Retrieval corpus (24,935 chunks):**
+**Retrieval corpus (34,206 chunks):**
 
 - 2,784 PubMed abstracts fetched from NCBI E-utilities (30 clinical topics) → 11,244
   chunks at 512/64.
@@ -163,6 +165,12 @@ answer; the Gemini model does that from the retrieved evidence.
   book, random, seed 42 — a balanced coverage sample, **not** hand-picked for the exam
   questions. The base paper names no individual book titles, so its corpus cannot be
   copied; this public, citable substitute is deviation #3.
+- 9,271 passages from the public Symptom-Disease Dataset
+  ([`dux-tecblic/symptom-disease-dataset`](https://huggingface.co/datasets/dux-tecblic/symptom-disease-dataset),
+  paper ref [30]): 7,043 patient-style narratives across 1,082 disease classes,
+  passage = `"<narrative> Condition: <disease>"`, split 512/64. Built into its **own**
+  collection by `scripts/build_symptom_index.py`, which never touches the existing
+  two (it refuses to overwrite a non-empty collection without `--recreate`).
 
 **Benchmark datasets (frozen, seed 42, 50 questions each):**
 
@@ -257,8 +265,8 @@ confidence = 0.35 × retrieval_similarity      (best BioBERT cosine of returned 
 
 | Category | Items |
 |---|---|
-| **Implemented** (exists in code) | Five agents + pipeline loop; staged Clarifier (deterministic normalisation → zero-shot NER/associations → ICD-10-CM via free NLM API); BioBERT/Qdrant dual-collection RRF retrieval with 3-level fallback; PubMed scanner with evidence levels; confidence heuristic with logged components; optimizer re-query; CLI + local web demo (live analysis and saved replay); audit logging; LLM disk cache; evaluation harness; benchmark sampler; per-agent provider/model configuration with automatic Gemini fallback and per-agent `model_trace` logging |
-| **Tested** (verified technically) | End-to-end demos `medqa_347` and `medqa_107`; Qdrant concurrency stress test (8 threads / 16 calls, 0 failures, counts unchanged); retrieval smoke tests; JSON parsing/LLM retry paths; gold-answer isolation; demo replay viewer |
+| **Implemented** (exists in code) | Five agents + pipeline loop; staged Clarifier (deterministic normalisation → zero-shot NER/associations → ICD-10-CM via free NLM API); BioBERT/Qdrant three-collection RRF retrieval with τ=0.65 evidence threshold, term boosting and the Fig. 5 fallback ladder; PubMed scanner with evidence levels; confidence heuristic with logged components; optimizer re-query; CLI + local web demo (live analysis and saved replay); audit logging; LLM disk cache; evaluation harness; benchmark sampler; per-agent provider/model configuration with automatic Gemini fallback and per-agent `model_trace` logging |
+| **Tested** (verified technically) | End-to-end demos `medqa_347` and `medqa_107`; Qdrant concurrency stress test (8 threads / 16 calls, 0 failures, counts unchanged); retrieval smoke tests; Phase 4 suite (22 checks: boosting rules, threshold ladder, weak-query strategy chain, new corpus, full `run_case`); JSON parsing/LLM retry paths; gold-answer isolation; demo replay viewer |
 | **Evaluated** (measured experimentally) | MedQA, 20 questions × 3 configurations (results in §11) |
 | **Not yet evaluated** | PubMedQA (50 frozen) and MedBullets (50 frozen) — prepared but **no results**; free-text θ = 0.80 scoring path (implemented, never exercised on a benchmark); 50-question MedQA runs |
 | **Future work** (outside current scope) | Larger evaluation, retrieval-quality metric with stemming, confidence calibration study, two-model role heterogeneity (needs a second API key), SNOMED CT / ICD-10 coding, expert/clinician review, guidelines beyond PubMed |
@@ -270,12 +278,13 @@ confidence = 0.35 × retrieval_similarity      (best BioBERT cosine of returned 
 | 5 different LLMs for the 5 roles | one shared Gemini model by default; per-agent provider/model overrides via `.env`, Gemini fallback, per-call `model_trace` (replication Phase 2) | **deviation** — architecture ready for multi-model, one key still suffices |
 | Gemini-2.0-Flash | `gemini-flash-lite-latest` | **forced** — 2.0/2.5 retired, 3.8-flash 503/timeouts; only reliable model on our key |
 | CrewAI orchestration | explicit Python pipeline | **deviation** (transparent, testable) |
-| Serper + Scholar + NICE + 1,000 PDFs | PubMed E-utilities + 18 MedRAG textbooks | **deviation** (free, citable) |
+| Serper + Scholar + NICE + 1,000 PDFs | PubMed E-utilities + 18 MedRAG textbooks + the paper's own Symptom-Disease dataset (ref [30]) | **deviation** (free, citable) — Serper/NICE added in Phase 5, PDF/OCR pipeline skipped |
 | Textbooks/guidelines/epidemiological datasets (titles unpublished) | balanced 780/book sample from MedRAG | **deviation** (paper's corpus unreproducible) |
+| Term boosting algorithm (Table 2: "Active", weights unpublished) | documented approximation: append absent priority terms, repeat present ones once, never boost "no …" negations, max 5 terms / 400 chars (`_boost_query`) | **approximation** (Phase 4) — paper gives no formula |
 | SNOMED CT / ICD-10 mapping | staged Clarifier + **ICD-10-CM via free NLM Clinical Tables API** (real codes only, `matched_on` recorded; SNOMED CT deferred — licence) | **partial** (Phase 3) — never claims codes we did not return |
 | Confidence formula | documented heuristic | **not published in paper** |
 | max 3 feedback cycles | default 3; evaluation used 2 (time budget) | documented |
-| 1,000 PDFs → 200k chunks → 18M embeddings | 24,935 chunks | paper's arithmetic is inconsistent; not treated as a target |
+| 1,000 PDFs → 200k chunks → 18M embeddings | 34,206 chunks | paper's arithmetic is inconsistent; not treated as a target |
 
 Additional measurement limitations:
 
@@ -320,6 +329,10 @@ slides, or commands.
 python scripts\fetch_pubmed.py          # ~2,800 abstracts from NCBI (free)
 python scripts\build_index.py           # chunk -> BioBERT -> Qdrant (biomedical)
 python scripts\build_textbook_index.py  # MedRAG textbooks -> Qdrant (textbooks)
+python scripts\build_symptom_index.py   # HF Symptom-Disease [30] -> Qdrant (symptom_disease)
+                                        #   creates ONLY that collection; refuses to
+                                        #   overwrite a non-empty one without --recreate
+python scripts\eval_retrieval.py 20     # retrieval-only diagnostic (no LLM)
 python scripts\smoke_retrieval.py       # inspect retrieved passages
 python scripts\sample_datasets.py       # freeze 50 questions/dataset, seed 42
 ```
@@ -415,7 +428,7 @@ clinical-cdss/
 ├── scripts/                   # corpus build, sampling, demo/report helpers
 ├── data/
 │   ├── samples/*.jsonl        # frozen benchmark questions (50 × 3 datasets)
-│   └── raw/qdrant_index/      # 24,935-vector local index (git-ignored)
+│   └── raw/qdrant_index/      # 34,206-vector local index (git-ignored)
 ├── results/
 │   ├── eval_medqa_20261026_223318.{csv,json}   # the reported run
 │   ├── execution_logs/        # per-case audit logs (incl. medqa_347, medqa_107)

@@ -139,6 +139,9 @@ def run_case(
             {
                 "iteration": it,
                 "query": rag.get("query_used"),
+                # Fig. 5 chain actually used for this iteration (strategy ladder,
+                # thresholds, per-step ms) - needed to audit the fallback behaviour
+                "retrieval_trace": rag.get("fallback_trace"),
                 "n_passages": len(rag.get("passages", [])),
                 "passages": rag.get("passages", []),
                 "n_hypotheses": len(rag.get("hypotheses", [])),

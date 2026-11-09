@@ -21,12 +21,12 @@
 | G-03 | CrewAI orchestration | NOT IMPLEMENTED (behavioral equivalent in place; **decision confirmed 2026-11-09: keep Python orchestration**, documented deviation) |
 | G-04 | Clinical text processing (normalization → NER → association) | **IMPLEMENTED (Phase 3)** — deterministic normalisation + explicit entities/associations schema (NER & structuring share one zero-shot pass — paper doesn't state call counts) |
 | G-05 | SNOMED CT / ICD-10 mapping | **PARTIALLY IMPLEMENTED (Phase 3)** — ICD-10-CM live via free NLM API (real codes only, `matched_on` recorded); SNOMED CT deferred (licence) |
-| G-06 | Biomedical corpus construction (1,000 PDFs, OCR, filters) | PARTIALLY IMPLEMENTED / exact corpus CANNOT BE REPRODUCED |
+| G-06 | Biomedical corpus construction (1,000 PDFs, OCR, filters) | **PARTIALLY IMPLEMENTED (Phase 4)** — third corpus source (paper ref [30] Symptom-Disease) added as its own collection; PDF/OCR pipeline skipped (decision); exact corpus CANNOT BE REPRODUCED |
 | G-07 | BioBERT embeddings (768-D) | FULLY IMPLEMENTED |
-| G-08 | Chunking & indexing (512/64, 500/80 fallback, page metadata) | PARTIALLY IMPLEMENTED |
-| G-09 | Qdrant cosine retrieval, top-k | FULLY IMPLEMENTED |
-| G-10 | Three-level fallback (Fig. 5 strategies) | PARTIALLY IMPLEMENTED |
-| G-11 | Medical term boosting | NOT IMPLEMENTED (paper algorithm CANNOT BE REPRODUCED — approximation needed) |
+| G-08 | Chunking & indexing (512/64, 500/80 fallback, page metadata) | **PARTIALLY IMPLEMENTED (Phase 4)** — `length` metadata ✅, 500/80 + page numbers impossible without PDFs |
+| G-09 | Qdrant cosine retrieval, top-k | FULLY IMPLEMENTED (Phase 4: τ=0.65 enforced) |
+| G-10 | Three-level fallback (Fig. 5 strategies) | **IMPLEMENTED (Phase 4)** — full Fig. 5 ladder + per-rung trace; safety return + per-step timing are ours |
+| G-11 | Medical term boosting | **IMPLEMENTED (Phase 4, APPROXIMATION)** — paper algorithm unpublished; `_boost_query` documented as our interpretation |
 | G-12 | External evidence sources (Serper / Scholar / NICE) | PARTIALLY IMPLEMENTED (PubMed only) |
 | G-13 | Evidence classification & weighting | FULLY IMPLEMENTED (for disclosed rules) |
 | G-14 | Clinical fusion (cross-check, conflict, report) | PARTIALLY IMPLEMENTED |
@@ -86,12 +86,12 @@
 
 ### G-06 · Biomedical corpus construction — **PARTIALLY IMPLEMENTED** (exact corpus **CANNOT BE REPRODUCED**)
 - **Paper requires (§II-B-1, Fig. 3):** >15-keyword queries + study filters + ~20 excluded topics → ≤1,000 parallel PDF downloads (relevance-ranked, Entrez history) → PyMuPDF extraction (65 pg/s) → 28% OCR + ICU normalization → regex section stripping → segmentation → cleaning → embedding → Qdrant; plus HF Symptom-Disease Dataset [30]; claims 200k chunks / 18M embeddings / 2.1 GB / 38 min (and separately "889 articles + 5,630 patient texts").
-- **Our code:** `scripts/fetch_pubmed.py` (30 fixed topics, `retmax=100`, E-utilities, → 2,784 abstracts), `scripts/build_index.py` (512/64 chunking → `biomedical` collection, 11,244 points), `scripts/build_textbook_index.py` (MedRAG/textbooks, 18 books × 780 passages → `textbooks` collection, 13,691 points). Total **24,935 chunks**.
-- **Missing vs paper:** PDF full-text pipeline (PyMuPDF), OCR (28% of pages), ICU normalization, regex section filtering, >15-keyword query construction with exclusions, 1,000-PDF scale, page-number/length metadata, **HF Symptom-Disease dataset [30]**, 500/80 page-fallback chunking.
-- **Files to modify:** new `scripts/fetch_pubmed_pdfs.py`/`build_pdf_index.py` (if pursued), `scripts/build_index.py`, `src/config.py` (`COLLECTIONS`).
-- **External deps/datasets:** PMC open-access PDFs (free), PyMuPDF+OCR (free, already installed system-wide), `databricks/…`? → ref [30] = *D. Tecblic, Symptom-Disease Dataset, HuggingFace* (free).
-- **Feasible:** exact paper corpus **not feasible** (query recipe, topic list and index never released; paper contradicts itself on size). Closest defensible alternative **already built**; optional upgrades: add symptom-disease dataset as a **third collection** (must not touch existing collections — `build_index.py:74-75` **deletes** its collection on rerun, so new sources must go into new collection names), broaden topics, optional PDF pipeline.
-- **Recommendation:** add the public Symptom-Disease dataset + keep abstracts/textbooks; skip the 1,000-PDF OCR pipeline unless you want a multi-day detour (needs approval either way).
+- **Our code:** `scripts/fetch_pubmed.py` (30 fixed topics, `retmax=100`, E-utilities, → 2,784 abstracts), `scripts/build_index.py` (512/64 chunking → `biomedical` collection, 11,244 points), `scripts/build_textbook_index.py` (MedRAG/textbooks, 18 books × 780 passages → `textbooks` collection, 13,691 points), **`scripts/build_symptom_index.py` (Phase 4: paper ref [30] `dux-tecblic/symptom-disease-dataset`, 7,043 narratives → `symptom_disease` collection, 9,271 points — creates only its own collection, refuses to overwrite a non-empty one without `--recreate`)**. Total **34,206 chunks**.
+- **Missing vs paper:** PDF full-text pipeline (PyMuPDF), OCR (28% of pages), ICU normalization, regex section filtering, >15-keyword query construction with exclusions, 1,000-PDF scale, page-number metadata, 500/80 page-fallback chunking.
+- **Files:** `scripts/fetch_pubmed.py`, `scripts/build_index.py`, `scripts/build_textbook_index.py`, `scripts/build_symptom_index.py`, `src/config.py` (`COLLECTIONS`).
+- **External deps/datasets:** PMC open-access PDFs (free), PyMuPDF+OCR (free, already installed system-wide) → ref [30] = *D. Tecblic, Symptom-Disease Dataset, HuggingFace* (**added Phase 4**, free, cached under `data/raw/symptom_disease/`).
+- **Feasible:** exact paper corpus **not feasible** (query recipe, topic list and index never released; paper contradicts itself on size). Closest defensible alternative **now built** (all three corpus sources); optional upgrade: the 1,000-PDF OCR pipeline (needs approval either way).
+- **Recommendation:** keep abstracts/textbooks/symptom-disease; skip the 1,000-PDF OCR pipeline (multi-day detour, paper's corpus still unreproducible).
 
 ### G-07 · BioBERT embeddings — **FULLY IMPLEMENTED**
 - **Paper requires:** `BioBERT-mnli-snli-scinli-scitail-mednli-stsb`, 768-D, frozen weights, offline indexing.
@@ -99,29 +99,29 @@
 
 ### G-08 · Chunking and indexing — **PARTIALLY IMPLEMENTED**
 - **Paper requires (Table 2):** Recursive Character Text Splitter 512/64; **page-based fallback 500/80** when segments inadequate; drop too-brief/label-only segments; metadata = source filename, **page number**, text length.
-- **Our code:** `scripts/build_index.py:15-39` separator-based splitter (recursive-style) at `CHUNK_SIZE=512 / CHUNK_OVERLAP=64` (`config.py:31-32`), drops chunks ≤60 chars; payload = title/url/pmid/source/topic/pubtypes/year/chunk_index.
-- **Missing:** 500/80 fallback path; chunk **length** metadata; page numbers (meaningless for abstracts — only possible with the PDF pipeline, G-06).
-- **Files:** `scripts/build_index.py`, `src/config.py`.
-- **Feasible:** yes (length + fallback on next index build; page numbers only with PDFs). **Index rebuild must preserve existing collections** (see safety note below).
+- **Our code:** `scripts/build_index.py:15-39` separator-based splitter (recursive-style) at `CHUNK_SIZE=512 / CHUNK_OVERLAP=64` (`config.py:31-32`), drops chunks ≤60 chars; payload = title/url/pmid/source/topic/pubtypes/year/chunk_index. **Phase 4: every hit now carries `length`** (`retrieval.py`, computed from the payload text) and the new `symptom_disease` collection stores `length` per chunk.
+- **Missing:** 500/80 fallback path (meaningless without page-based segments); page numbers (only possible with the PDF pipeline, G-06).
+- **Files:** `scripts/build_index.py`, `scripts/build_symptom_index.py`, `src/config.py`, `src/retrieval.py`.
+- **Feasible:** yes (length done; page numbers only with PDFs). **Index rebuilds must preserve existing collections** (see safety note below).
 
 ### G-09 · Qdrant retrieval — **FULLY IMPLEMENTED**
 - **Paper requires:** cosine similarity, ANN top-k, offline precomputed index, parametric threshold/max-results.
-- **Our code:** `src/retrieval.py` (Qdrant COSINE, `query_points`, `TOP_K=5` — paper never states k; local embedded mode or cloud URL via `.env`), `search()`/`search_with_fallback()` expose parametric k. Missing: none (paper's "threshold" as a hard filter is not used by us — see G-10).
+- **Our code:** `src/retrieval.py` (Qdrant COSINE, `query_points`, `TOP_K=5` — paper never states k; local embedded mode or cloud URL via `.env`), `search()`/`search_with_fallback()` expose parametric k and an optional `score_threshold`. **Phase 4: the paper's τ=0.65 is enforced client-side** (`RETRIEVAL_THRESHOLD`, over-fetch ×5 then filter — works in embedded and cloud mode). Missing: none.
 
-### G-10 · Three-level fallback (Figure 5) — **PARTIALLY IMPLEMENTED**
+### G-10 · Three-level fallback (Figure 5) — **IMPLEMENTED (Phase 4)**
 - **Paper requires (Fig. 5):** on unsatisfactory results apply **Strategy 1 Threshold Reduction → Strategy 2 Simplify Query → Strategy 3 Remove Symptoms**; explicitly not top-k rotation; decision-trace metadata (source, doc ID, page, fragment length, retrieval time).
-- **Our code:** `src/retrieval.py:148-174` — level 1 exact search → **level 2 widen k** (if best<0.50) → **level 3 simplified query** (if best<0.40). Docstring at line 151 states a third order ("lower threshold → simplify → widen k") that matches neither the code nor Fig. 5. Hit metadata: chunk_id/score/rrf/collections/text/title/url/source/topic/pmid — no page/fragment-length/per-hit timing.
-- **Missing:** Strategy 1 (threshold reduction), Strategy 3 (remove symptoms), correct Fig. 5 order, docstring fix, per-hit retrieval time.
-- **Files:** `src/retrieval.py`, `src/rag_analyzer.py` (supplies simplified query), `src/config.py` (thresholds).
-- **Feasible:** yes, no external deps.
+- **Our code:** `src/retrieval.py::search_with_fallback` now walks the published ladder: boosted search @τ=0.65 → threshold reduction @0.55 → @0.45 → simplify query @0.45 → remove symptoms @0.45 → **no-threshold safety return** (our addition so downstream stages never receive zero passages). Widen-k (the old prototype behaviour) was removed — it is not in Fig. 5. Every rung appends `{level, strategy, threshold, n_hits, best_score, query_used, ms}` to `trace["levels"]`, plus `retrieval_ms` total; full-mode runs store it per iteration (`pipeline.py` → `iterations[i].retrieval_trace`). Hit metadata: chunk_id/score/rrf/collections/text/title/url/source/topic/pmid/**length** — no page numbers (G-06).
+- **Implemented:** all three strategies + correct Fig. 5 order + fixed docstring + per-step timing. **Missing:** page numbers (impossible without PDFs); per-*hit* timing (per-step timing instead — the paper does not define where the clock stops).
+- **Files:** `src/retrieval.py`, `src/rag_analyzer.py` (supplies boost/symptom/simplified terms), `src/config.py` (`RETRIEVAL_THRESHOLD`, `TERM_BOOST`).
+- **Feasible:** done, no external deps.
+- **Note:** the 0.65/0.55/0.45 rungs come from Table 2 + Fig. 5 annotations and were **not** tuned against evaluation questions (`scripts/eval_retrieval.py` runs are measurement/reporting only).
 
-### G-11 · Medical term boosting — **NOT IMPLEMENTED** (exact algorithm **CANNOT BE REPRODUCED**)
+### G-11 · Medical term boosting — **IMPLEMENTED (Phase 4, APPROXIMATION)**
 - **Paper requires (§II-B-2, Table 2, Table 7):** repeat high-priority symptom terms in the query so they gain weight in the embedding ("shortness of breath", "chest pain" score higher); **Active (baseline)**; ablation → 80.0%.
-- **Our code:** no boosting anywhere (grep-verified). Query is embedded as-is (`retrieval.py:61-62`).
-- **Missing:** the whole feature. **The paper never specifies the mechanism** (term repetition? query concatenation? per-term score multiplier?) → any implementation is an **our-interpretation approximation**, must be labeled as such.
-- **Files:** `src/retrieval.py` (boost before embed), `src/rag_analyzer.py`/`src/clarifier.py` (priority terms), `src/config.py` (enable flag — needed later for Table-7 term-boost ablation).
-- **Feasible:** yes (e.g., prefix query with repeated priority terms, or boost exact term matches at rank time). No deps.
-- **Note:** must implement before the Table 7 "term boosting off" ablation arm can exist.
+- **Our code:** `src/retrieval.py::_boost_query` (called from `search_with_fallback` when `TERM_BOOST=1`): appends absent priority terms, repeats present ones once, **never boosts negated terms** ("no …", "denies", "without", "negative for", "not "), max 5 terms / 400 chars. Priority terms come from `src/rag_analyzer.py` (`key_concepts + symptoms`). `TERM_BOOST` config flag exists — **required for the Table-7 "term boosting off" ablation arm**.
+- **Missing:** nothing functional. **The paper never specifies the mechanism** (term repetition? query concatenation? per-term score multiplier?) → `_boost_query` is explicitly labeled an **our-interpretation approximation** in code, README §13 and METHOD_NOTES.
+- **Files:** `src/retrieval.py`, `src/rag_analyzer.py`, `src/config.py`, `.env.example`.
+- **Feasible:** done. No deps.
 
 ### G-12 · External evidence sources — **PARTIALLY IMPLEMENTED**
 - **Paper requires (§II-A-3):** Serper web-search API → PubMed, Google Scholar, NICE guideline databases; programmatic per-hypothesis queries; proactive continuous scanning.
@@ -221,7 +221,7 @@
 
 ## Safety constraints baked into the plan
 
-1. **Never touch:** `data/raw/qdrant_index/` (existing 24,935 vectors), `results/eval_medqa_20261026_*.{csv,json}` (prototype benchmarks), `results/execution_logs/medqa_{107,347}.json`, `.env` API keys (only *add* new key lines with user approval).
+1. **Never touch:** `data/raw/qdrant_index/` (existing collections: 11,244 biomedical + 13,691 textbooks vectors; Phase 4 added a separate `symptom_disease` collection of 9,271), `results/eval_medqa_20261026_*.{csv,json}` (prototype benchmarks), `results/execution_logs/medqa_{107,347}.json`, `.env` API keys (only *add* new key lines with user approval).
 2. **`build_index.py:74-75` deletes its collection on rerun** — any corpus work must target **new collection names** or run only after explicit approval.
 3. New evaluation outputs use the `repl_` prefix; prototype outputs stay untouched.
 4. Every phase ends with tests + a status report before the next phase starts.

@@ -16,8 +16,8 @@ DOI 10.1109/ACCESS.2025.3613340
 | Repo scaffold, config, logging, LLM cache | done | `src/`, `results/llm_cache/` |
 | PubMed corpus (30 clinical topics, 2 failed) | done | 2,784 abstracts → 11,244 chunks |
 | Textbook corpus (MedRAG, 18 books) | done | 13,691 passages from 780/book sample |
-| BioBERT embeddings + Qdrant index | done | 24,935 chunks, 768-d, cosine |
-| Retrieval: dual-collection RRF + 3-level fallback | done | `textbook share of top-k = 40%` |
+| BioBERT embeddings + Qdrant index | done | 24,935 chunks, 768-d, cosine (→ 34,206 after replication Phase 4) |
+| Retrieval: dual-collection RRF + 3-level fallback | done | `textbook share of top-k = 40%` (→ three collections + Fig. 5 threshold ladder after Phase 4) |
 | Agent 1 Clinical Text Clarifier | done | `src/clarifier.py` |
 | Agent 2 RAG Analyzer | done | `src/rag_analyzer.py` |
 | Agent 3 Evidence Scanner (PubMed) | done | 4 records/query after query fix |
@@ -50,7 +50,7 @@ DOI 10.1109/ACCESS.2025.3613340
 
 | Measurement | Value | Note |
 |---|---|---|
-| Index size | 24,935 chunks | 11,244 PubMed + 13,691 textbook |
+| Index size | 24,935 chunks (at the 26 Oct milestone; **34,206 after replication Phase 4**) | 11,244 PubMed + 13,691 textbook (+ 9,271 symptom-disease) |
 | Retrieval latency | ~1–2 s/query | CPU BioBERT; model load ~30 s once |
 | LLM latency | 22–33 s/call | `gemini-flash-lite-latest`, only working model |
 | MedQA single case (`medqa_347`) | **correct**, conf 0.8577 | 1 iteration, 100.6 s |

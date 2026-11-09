@@ -70,7 +70,7 @@ These are deviations, not hidden knobs. They are printed in every audit log unde
 ## Reproducibility
 
 - **Retrieval backend:** the reported evaluation ran on the **local** Qdrant index
-  (`data/raw/qdrant_index`, 24,935 vectors). A later deployment-preparation change put a
+  (`data/raw/qdrant_index`, then 24,935 vectors; 34,206 after replication Phase 4). A later deployment-preparation change put a
   Qdrant Cloud URL in `.env`; that cluster became unreachable, so on 2026-11-09 the two
   `QDRANT_*` lines were blanked (with approval) to restore local mode — the same backend
   the published numbers came from. The evaluation files predate the cloud change, so no
@@ -95,7 +95,9 @@ These are deviations, not hidden knobs. They are printed in every audit log unde
 1. **Lexical retrieval check.** `scripts/eval_retrieval.py` looks for the gold answer
    string in retrieved text with exact token overlap ≥ 0.6. It has no stemming or synonym
    handling and scores 0/20 even when retrieved passages are clinically relevant. Treat it
-   as a lower bound, not as retrieval accuracy.
+   as a lower bound, not as retrieval accuracy. It is used only to *report* retrieval
+   behaviour (e.g. after Phase 4: mean top-1 0.644, and which Fig. 5 rung returned the
+   passages — 8/20 @0.65, 11/20 @0.55, 1/20 @0.45); no threshold was ever chosen from it.
 2. **Confidence is a heuristic.** The paper does not publish its formula. Ours is linear
    in four logged components and is not calibrated; a confidence of 0.66 does not mean
    "66% chance correct".
@@ -104,11 +106,21 @@ These are deviations, not hidden knobs. They are printed in every audit log unde
    supports per-agent provider/model overrides (`.env`) with automatic Gemini fallback
    and per-call `model_trace` logging, but all five roles still run the same Gemini
    model by default (single available key) — so the correlation weakness remains.
-4. **Corpus scale.** 24,935 chunks against the paper's claimed 200k / 18M embeddings;
-   retrieval recall is therefore not comparable.
+4. **Corpus scale.** 34,206 chunks (Phase 4) against the paper's claimed 200k / 18M
+   embeddings; retrieval recall is therefore not comparable. The frozen numbers in §Results
+   were measured on the earlier 24,935-chunk two-collection index, before τ filtering,
+   term boosting and the third collection existed — they are not re-measured here.
 5. **Free-text scoring is lenient.** PubMedQA/MedBullets numbers under θ = 0.80 should not
    be compared with literature that uses exact match or token F1.
 6. **Live evidence is not deterministic.** PubMed records can change between runs, which
    changes the Fusion prompt. Accuracy was stable across our two runs (18/20), but one
    case's iteration count and another's confidence changed because the web stream changed.
    Only the LLM responses are cached; the web search is not.
+7. **Term boosting is an approximation (Phase 4).** Table 2 says boosting is "Active" but
+   the paper never publishes the mechanism. `_boost_query()` (append absent priority
+   terms, repeat present ones once, skip negations, ≤5 terms / 400 chars) is our reading,
+   not the paper's algorithm — so any accuracy difference attributable to boosting cannot
+   be attributed to *the paper's* boosting. The τ rungs 0.65/0.55/0.45 come from
+   Table 2 / Fig. 5 annotations and were never tuned against evaluation questions; the
+   "no-threshold safety return" at the end of the ladder is also ours (Fig. 5 does not
+   define what happens when all three strategies fail).

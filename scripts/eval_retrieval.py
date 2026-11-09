@@ -39,8 +39,13 @@ def main() -> None:
     hits_rank1 = 0
     scores = []
     textbook_share = []
+    strategies: dict[str, int] = {}
     for r in rows:
-        passages, _ = search_with_fallback(r["question"])
+        passages, trace = search_with_fallback(r["question"])
+        # which Fig. 5 rung actually returned the passages (reporting only)
+        lvl = next((x for x in trace.get("levels", []) if x.get("n_hits")), None)
+        if lvl:
+            strategies[lvl["strategy"]] = strategies.get(lvl["strategy"], 0) + 1
         terms = key_terms(r.get("answer_text", ""))
         found_at = None
         for i, p in enumerate(passages, 1):
@@ -71,6 +76,10 @@ def main() -> None:
         print(f"mean top-1 similarity       : {sum(scores)/len(scores):.3f}")
     if textbook_share:
         print(f"textbook share of top-k     : {sum(textbook_share)/len(textbook_share)*100:.0f}%")
+    if strategies:
+        print("Fig. 5 rung that returned the passages:")
+        for name, n in sorted(strategies.items(), key=lambda kv: -kv[1]):
+            print(f"  {name:<28} {n}/{len(rows)}")
 
 
 if __name__ == "__main__":

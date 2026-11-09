@@ -157,6 +157,22 @@
     .benchmark-options summary { cursor: pointer; color: #7a8781; font-size: 10px; font-weight: 650; }
     .benchmark-options .options { margin-top: 10px; }
     .section-divider { height: 1px; background: var(--line); margin: 19px 0; }
+    .tier-badge { display: inline-block; padding: 3px 8px; border-radius: 99px; font-size: 9px; font-weight: 750; letter-spacing: .05em; text-transform: uppercase; vertical-align: middle; }
+    .tier-high { background: var(--green-pale); color: var(--green); }
+    .tier-mod { background: var(--amber-pale); color: var(--amber); }
+    .tier-low { background: #f8e9e7; color: var(--red); }
+    .report-panel .report-body { padding: 4px 20px 18px; }
+    .variation-list { margin: 6px 0 0; padding-left: 16px; color: var(--muted); font-size: 10px; line-height: 1.7; }
+    .variation-list li { margin-bottom: 3px; }
+    .variation-note { color: #7a8781; font-size: 9px; line-height: 1.6; margin: 6px 0 0; }
+    .diag-list { padding: 4px 20px 14px; }
+    .diag-row { padding: 11px 0; border-bottom: 1px solid #eef0ed; }
+    .diag-row:last-child { border-bottom: 0; }
+    .diag-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .diag-top strong { font-size: 12px; color: #283a34; }
+    .diag-rationale { color: #687570; font-size: 10px; line-height: 1.6; margin: 5px 0 7px; }
+    .diag-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; color: #87918d; font-size: 9px; }
+    .diag-ev { display: inline-flex; gap: 4px; flex-wrap: wrap; }
     @keyframes spin { to { transform: rotate(360deg); } }
     footer { max-width: 1440px; margin: 0 auto; padding: 0 34px 22px 277px; color: #89938e; font-size: 9px; }
     @media (max-width: 1040px) { .layout { grid-template-columns: minmax(0,1fr) 250px; } main { padding-left: 26px; padding-right: 26px; } }
@@ -204,20 +220,64 @@
       const answer = selected.answer || '';
       document.getElementById('crumb-case').textContent = d.case_id;
       const optionMarkup = Object.entries(options).map(([key, value]) => `<li class="option ${key === answer ? 'correct' : ''}"><strong>${escapeHtml(key)}</strong>${escapeHtml(value)}</li>`).join('');
+
+      // --- Run report fields (paper Sec. III: "the source utilized, potential
+      // sources of variation, and a calibrated confidence score ... appended to
+      // the report"). Tier cutoffs (>=0.80 High, >= tau Moderate, < tau Low) are
+      // OURS: the paper shows confidence but publishes no tier boundaries.
+      const tau = Number(d.parameters?.tau ?? 0.65);
+      const tier = confidence >= 0.80 ? { label: 'High', cls: 'tier-high' }
+        : confidence >= tau ? { label: 'Moderate', cls: 'tier-mod' }
+        : { label: 'Low', cls: 'tier-low' };
+      const allWeb = iterations.flatMap(it => it.web_records || []);
+      const nRag = iterations.reduce((s, it) => s + (it.n_passages ?? (it.passages || []).length), 0);
+      const srcChips = [];
+      if (nRag) srcChips.push(`<span class="fact">Local RAG index · ${nRag} passages</span>`);
+      [['pubmed', 'PubMed'], ['nice', 'NICE guidelines'], ['web', 'Web search']].forEach(([k, label]) => {
+        // old (pre-Phase-5) records carry no source field - they were PubMed-only
+        const n = allWeb.filter(r => (r.source || 'pubmed') === k).length;
+        if (n) srcChips.push(`<span class="fact">${label} · ${n} records</span>`);
+      });
+      if (!srcChips.length) srcChips.push('<span class="fact">No evidence sources recorded for this run</span>');
+      const failures = iterations.flatMap(it => it.search_failures || []);
+      const variation = [
+        'PubMed and NICE are queried live at run time — new results can differ between runs.',
+        'Serper web-search responses are disk-cached; identical queries return identical pages.',
+        'LLM calls run at temperature 0 and are cached by prompt hash — repeating an identical run is deterministic.',
+        'All five agent roles share one Gemini model, so errors can correlate across agents.'
+      ];
+      if (failures.length) variation.push(`${failures.length} source failure(s) recorded during this run — evidence was degraded, never fabricated.`);
+      const requery = iterations.some(it => it.stop_reason === 'low_confidence_requery');
+      const feedbackLine = requery
+        ? `Confidence fell below τ → the feedback loop re-queried (${iterations.length} iterations recorded).`
+        : `Confidence met τ before any re-query (${iterations.length} iteration${iterations.length === 1 ? '' : 's'} recorded).`;
+      const diagRows = (d.diagnoses || []).map(x => {
+        const ev = (x.evidence || []).map(e => `<span class="fact">${escapeHtml(e)}</span>`).join(' ');
+        const src = (x.source || []).join(' + ') || 'not recorded';
+        const flag = x.above_threshold
+          ? '<span class="tier-badge tier-high">≥ τ</span>'
+          : '<span class="tier-badge tier-mod">&lt; τ</span>';
+        return `<div class="diag-row"><div class="diag-top"><strong>${escapeHtml(x.condition)}</strong>${flag}</div>${x.rationale ? `<p class="diag-rationale">${escapeHtml(x.rationale)}</p>` : ''}<div class="diag-meta"><span>confidence ${Number(x.confidence || 0).toFixed(4)}</span><span>source: ${escapeHtml(src)}</span><span class="diag-ev">${ev || 'no linked evidence ids'}</span></div></div>`;
+      }).join('');
+      const diagnosesMarkup = diagRows
+        ? `<section class="panel"><div class="panel-head"><div><div class="eyebrow">Paper §II-A-4 · structured report</div><div class="panel-title">Diagnosis · evidence · source · confidence</div></div></div><div class="diag-list">${diagRows}</div></section>`
+        : '';
+      const reportPanel = `<section class="panel report-panel"><div class="panel-head"><div><div class="eyebrow">Run report · paper §III</div><div class="panel-title">Sources utilized, variation, calibrated confidence</div></div></div><div class="report-body"><div class="summary-heading">Sources utilized</div><div class="facts">${srcChips.join('')}</div><div class="summary-heading" style="margin-top:13px">Calibrated confidence</div><div class="summary-row"><span>Score</span><strong>${confidence.toFixed(4)}</strong></div><div class="summary-row"><span>Tier</span><strong><span class="tier-badge ${tier.cls}">${tier.label}</span></strong></div><div class="summary-row"><span>Acceptance threshold (τ)</span><strong>${tau}</strong></div><div class="summary-row"><span>Adaptive feedback loop</span><strong>${requery ? 'Triggered' : 'Not triggered'}</strong></div><p class="variation-note">${escapeHtml(feedbackLine)}</p><div class="summary-heading" style="margin-top:13px">Potential sources of variation</div><ul class="variation-list">${variation.map(v => `<li>${escapeHtml(v)}</li>`).join('')}</ul></div></section>`;
       const iterationMarkup = iterations.map((it, idx) => {
         const hyps = (it.hypotheses || []).length ? (it.hypotheses || []).map(escapeHtml).join(', ') : 'No evidence-backed hypothesis';
         const feedback = it.feedback ? `<div class="feedback"><div class="feedback-label">Optimizer · query refinement</div><p>${escapeHtml(it.feedback.reason || 'Evidence was below the acceptance threshold; the search was refined.')}</p><span class="query-chip">↳ ${escapeHtml(it.feedback.refined_query || '')}</span></div>` : '';
-        return `<article class="panel iteration"><div class="iteration-head"><div class="iter-left"><span class="iter-number">${idx+1}</span><div><div class="iter-title">Iteration ${idx+1}</div><div class="iter-query" title="${escapeHtml(it.query || '')}">${escapeHtml(it.query || 'No query recorded')}</div></div></div><span class="confidence-small">${Number(it.confidence || 0).toFixed(4)} confidence</span></div><div class="iter-body"><div class="trace-grid"><div class="trace-stat"><span>RAG passages</span><strong>${it.n_passages ?? (it.passages||[]).length}<em>retrieved</em></strong></div><div class="trace-stat"><span>Supported hypotheses</span><strong>${(it.hypotheses||[]).length}<em>identified</em></strong></div><div class="trace-stat"><span>PubMed records</span><strong>${it.n_web_records ?? (it.web_records||[]).length}<em>found</em></strong></div></div><div class="hypothesis"><strong>RAG candidate · not a diagnosis:</strong> ${hyps}</div>${feedback}<div class="stop-line">${it.stop_reason === 'confidence_threshold_met' ? 'Threshold met · analysis stopped' : it.stop_reason === 'low_confidence_requery' ? 'Below threshold · optimizer initiated another pass' : 'Iteration limit reached'}</div></div></article>`;
+        return `<article class="panel iteration"><div class="iteration-head"><div class="iter-left"><span class="iter-number">${idx+1}</span><div><div class="iter-title">Iteration ${idx+1}</div><div class="iter-query" title="${escapeHtml(it.query || '')}">${escapeHtml(it.query || 'No query recorded')}</div></div></div><span class="confidence-small">${Number(it.confidence || 0).toFixed(4)} confidence</span></div><div class="iter-body"><div class="trace-grid"><div class="trace-stat"><span>RAG passages</span><strong>${it.n_passages ?? (it.passages||[]).length}<em>retrieved</em></strong></div><div class="trace-stat"><span>Supported hypotheses</span><strong>${(it.hypotheses||[]).length}<em>identified</em></strong></div><div class="trace-stat"><span>External records</span><strong>${it.n_web_records ?? (it.web_records||[]).length}<em>found</em></strong></div></div><div class="hypothesis"><strong>RAG candidate · not a diagnosis:</strong> ${hyps}</div>${feedback}<div class="stop-line">${it.stop_reason === 'confidence_threshold_met' ? 'Threshold met · analysis stopped' : it.stop_reason === 'low_confidence_requery' ? 'Below threshold · optimizer initiated another pass' : 'Iteration limit reached'}</div></div></article>`;
       }).join('');
       const target = arguments[1] || content;
       const isSaved = arguments[2] !== false;
       target.className = '';
       target.innerHTML = `<div class="layout"><div class="main-column">
         <section class="panel question-panel"><div class="question-top"><span class="case-tag">${isSaved ? `${escapeHtml(d.case_id)} · Benchmark replay` : 'Live analysis'}</span><span class="eyebrow">${isSaved && options ? 'Original benchmark prompt' : 'Clinical input'}</span></div><p class="question-text">${escapeHtml(d.question)}</p>${optionMarkup ? `<details class="benchmark-options"><summary>Show original benchmark answer choices</summary><ul class="options">${optionMarkup}</ul></details>` : ''}</section>
-        <section><div class="section-heading"><h2>Analysis trace</h2><span>${iterations.length} ${iterations.length === 1 ? 'iteration' : 'iterations'} recorded</span></div><div style="display:grid;gap:12px;margin-top:14px">${iterationMarkup}</div></section>
-        <section class="panel source-panel"><div class="panel-head"><div><div class="eyebrow">Traceable sources</div><div class="panel-title">Evidence inspected</div></div></div><div class="source-tabs" role="tablist"><button class="source-tab" role="tab" aria-selected="true" data-source="rag">Biomedical RAG <span id="rag-count"></span></button><button class="source-tab" role="tab" aria-selected="false" data-source="pubmed">PubMed <span id="pubmed-count"></span></button></div><div class="source-list" id="source-list"></div></section>
+        <section><div class="section-heading"><h2>Analysis trace</h2><span>${iterations.length} ${iterations.length === 1 ? 'iteration' : 'iterations'} recorded</span></div><div style="display:grid;gap:12px;margin-top:14px">${iterationMarkup}</div></section>${diagnosesMarkup}
+        <section class="panel source-panel"><div class="panel-head"><div><div class="eyebrow">Traceable sources</div><div class="panel-title">Evidence inspected</div></div></div><div class="source-tabs" role="tablist"><button class="source-tab" role="tab" aria-selected="true" data-source="rag">Biomedical RAG <span id="rag-count"></span></button><button class="source-tab" role="tab" aria-selected="false" data-source="pubmed">External evidence <span id="pubmed-count"></span></button></div><div class="source-list" id="source-list"></div></section>
       </div><div class="right-column">
-        <section class="panel answer-panel"><div class="answer-band"><div class="eyebrow">${answer ? 'Final benchmark answer' : 'Generated response'}</div><div class="answer-label">${answer ? `Selected option ${escapeHtml(answer)}` : 'Suggested next step'}</div><div class="answer-title">${escapeHtml(selected.answer_text || 'No final answer recorded')}</div><p class="answer-rationale">${escapeHtml(selected.rationale || '')}</p></div><div class="answer-content"><div><div class="metric-head"><strong>${confidence.toFixed(4)}</strong><span>confidence score</span></div><div class="meter"><div class="meter-fill" style="width:${Math.min(100, confidence*100)}%"></div></div><div class="metric-caption">Experimental heuristic · threshold ${escapeHtml(d.parameters?.tau ?? '0.65')}</div></div><div class="divider"></div><div><div class="summary-heading">Structured summary</div><div class="summary-row"><span>Patient</span><strong>${escapeHtml([clinical.patient_age, clinical.patient_sex].filter(Boolean).join(' · ') || 'Not specified')}</strong></div><div class="summary-row"><span>Duration</span><strong>${escapeHtml(clinical.duration || 'Not specified')}</strong></div><div class="summary-heading" style="margin-top:12px">Reported symptoms</div><div class="facts">${(clinical.symptoms||[]).map(x=>`<span class="fact">${escapeHtml(x)}</span>`).join('') || '<span class="fact">None recorded</span>'}</div><div class="summary-heading" style="margin-top:12px">Key concepts</div><div class="facts">${(clinical.key_concepts||[]).map(x=>`<span class="fact">${escapeHtml(x)}</span>`).join('') || '<span class="fact">None recorded</span>'}</div></div></div></section>
+        <section class="panel answer-panel"><div class="answer-band"><div class="eyebrow">${answer ? 'Final benchmark answer' : 'Generated response'}</div><div class="answer-label">${answer ? `Selected option ${escapeHtml(answer)}` : 'Suggested next step'}</div><div class="answer-title">${escapeHtml(selected.answer_text || 'No final answer recorded')}</div><p class="answer-rationale">${escapeHtml(selected.rationale || '')}</p></div><div class="answer-content"><div><div class="metric-head"><strong>${confidence.toFixed(4)}</strong><span><span class="tier-badge ${tier.cls}">${tier.label}</span> confidence</span></div><div class="meter"><div class="meter-fill" style="width:${Math.min(100, confidence*100)}%"></div></div><div class="metric-caption">Experimental heuristic · threshold ${escapeHtml(d.parameters?.tau ?? '0.65')}</div></div><div class="divider"></div><div><div class="summary-heading">Structured summary</div><div class="summary-row"><span>Patient</span><strong>${escapeHtml([clinical.patient_age, clinical.patient_sex].filter(Boolean).join(' · ') || 'Not specified')}</strong></div><div class="summary-row"><span>Duration</span><strong>${escapeHtml(clinical.duration || 'Not specified')}</strong></div><div class="summary-heading" style="margin-top:12px">Reported symptoms</div><div class="facts">${(clinical.symptoms||[]).map(x=>`<span class="fact">${escapeHtml(x)}</span>`).join('') || '<span class="fact">None recorded</span>'}</div><div class="summary-heading" style="margin-top:12px">Key concepts</div><div class="facts">${(clinical.key_concepts||[]).map(x=>`<span class="fact">${escapeHtml(x)}</span>`).join('') || '<span class="fact">None recorded</span>'}</div></div></div></section>
+        ${reportPanel}
         <div class="notice"><strong>Interpret with care.</strong> ${isSaved ? 'This is a replay of a benchmark run.' : 'This is an experimental, single-case analysis.'} The system is for research and education, not patient care. Its confidence score is not a probability.</div>
       </div></div>`;
       const allIterations = iterations;
@@ -229,13 +289,14 @@
         document.querySelectorAll('.source-tab').forEach(tab => tab.setAttribute('aria-selected', String(tab.dataset.source === which)));
         const items = which === 'rag' ? rag : web;
         const list = document.getElementById('source-list');
-        if (!items.length) { list.innerHTML = `<div class="empty-sources">No ${which === 'rag' ? 'retrieved passages' : 'PubMed records'} in this case iteration.</div>`; return; }
+        if (!items.length) { list.innerHTML = `<div class="empty-sources">No ${which === 'rag' ? 'retrieved passages' : 'external records'} in this case iteration.</div>`; return; }
         list.innerHTML = items.map((item, i) => {
           const isWeb = which === 'pubmed';
           const title = item.title || item.source || 'Untitled source';
           const href = isWeb && item.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${encodeURIComponent(item.pmid)}/` : (item.url || '');
           const titleEl = href ? `<a class="source-title" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(title)} ↗</a>` : `<span class="source-title">${escapeHtml(title)}</span>`;
-          const meta = isWeb ? `${item.journal || 'PubMed'} · ${item.year || 'Year unavailable'} · PMID ${item.pmid || '—'} · ${item.evidence_label || 'evidence type not classified'}` : `${item.source || item.journal || 'Textbook / biomedical corpus'}${item.pmid ? ` · PMID ${item.pmid}` : ''}${item.collections?.length ? ` · ${item.collections.join(', ')}` : ''}`;
+          const srcName = item.source === 'nice' ? 'NICE guideline' : item.source === 'web' ? 'Web search' : 'PubMed';
+          const meta = isWeb ? [item.journal || srcName, item.year || 'Year unavailable', item.pmid ? `PMID ${item.pmid}` : null, item.evidence_label || 'evidence type not classified'].filter(Boolean).join(' · ') : `${item.source || item.journal || 'Textbook / biomedical corpus'}${item.pmid ? ` · PMID ${item.pmid}` : ''}${item.collections?.length ? ` · ${item.collections.join(', ')}` : ''}`;
           const excerpt = item.abstract || item.text || '';
           const score = isWeb ? `Level ${item.evidence_level ?? '—'}` : `Score ${(Number(item.score)||0).toFixed(3)}`;
           return `<article class="source-item"><div class="source-top"><div>${titleEl}<div class="source-meta">${escapeHtml(meta)}</div></div><span class="source-score">${escapeHtml(score)}</span></div><p class="source-excerpt">${escapeHtml(shortText(excerpt, 280))}</p></article>`;

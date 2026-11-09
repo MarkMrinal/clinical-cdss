@@ -14,7 +14,7 @@
 | 5 | External evidence scanning (Serper if key provided, optional NICE, failure isolation) | ✅ **COMPLETE** | Serper (live, key in `.env`) + **keyless NICE** + PubMed, per-source isolation, web summaries (details below) |
 | 6 | Clinical fusion & adaptive optimization (+ `web` mode) | ✅ **COMPLETE** | three named §II-A-4 factors (weights ours, arithmetic unchanged) + per-diagnosis report + `web`-only arm; 59/59 tests + 20-ID regression 18/20 (details below) |
 | 7 | Experimental evaluation (micro metrics, ablation, iteration sweep, 3 datasets, MedBullets free-text) | ⏭️ **NEXT** | **API spend approval required before runs** (Serper cache already warm for the MedQA 20) |
-| 8 | Web interface report upgrades (Fig. 6 fields) | ⏸️ queued | |
+| 8 | Web interface report upgrades (Fig. 6 fields) | ✅ **COMPLETE** | Run-report panel (sources utilized / variation / calibrated confidence + High-Moderate-Low tier), per-diagnosis §II-A-4 rows, external-evidence tab fixes; 29/29 UI tests on both log generations |
 | 9 | Final replication analysis & documentation (README rewrite, deviation ledger) | ⏸️ queued | |
 
 ## What Phase 1 delivered (2026-11-09)

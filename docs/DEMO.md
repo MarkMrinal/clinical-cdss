@@ -4,6 +4,10 @@ Both commands replay against the LLM disk cache, so they finish in seconds. The
 retrieval and PubMed calls are still real. If you want the original cold-cache timing,
 the single MedQA case took 100.6 s.
 
+**Before running:** `.env` must have `QDRANT_URL=` and `QDRANT_API_KEY=` blank so
+retrieval uses the local index. If either is set to an unreachable cluster, retrieval
+returns 0 passages (check: the iteration line would show `rag=0`).
+
 ## Demo A — normal successful workflow
 
 ```powershell
@@ -65,3 +69,18 @@ This is a synthetic case, not a benchmark item. It shows the loop correcting a w
 hypothesis (pseudomesotheliomatous carcinoma → pneumonia) but confidence stays at 0.4794,
 below τ, so it stops at the 2-iteration cap. Use it only if you want a second correction
 story; `medqa_107` is stronger because it is a real benchmark item.
+
+## Web demonstration
+
+```powershell
+python web_demo.py
+# open http://127.0.0.1:8765
+```
+
+- **Saved demonstrations** tab replays `medqa_347` and `medqa_107` from
+  `results/execution_logs/` with **no API calls** — the reliable fallback if the network
+  or API is down.
+- The default tab accepts a free-text case and runs the live full pipeline (Gemini +
+  PubMed + local index). First live run may download the BioBERT model (~30 s) and takes
+  a few minutes. Use fictional cases only.
+- Setup on another machine: `LAB_PC_DEMO_SETUP.txt`.

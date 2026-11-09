@@ -1,0 +1,168 @@
+CLINICAL CDSS - LAB PC DEMO SETUP
+=================================
+
+Goal
+----
+Run the existing web demo locally on the lab PC, using the project's local
+Qdrant index for textbook/biomedical retrieval and the existing Gemini API
+pipeline for live analysis. Docker and Render are not needed for this setup.
+
+IMPORTANT: The complete project folder must include the local index at:
+  data\raw\qdrant_index
+
+The GitHub repository intentionally does not contain that index. A copy of
+only the GitHub repository is not enough for local RAG. Use the full folder
+copied to your USB drive. If possible, copy it from the USB drive onto the lab
+PC before running it; do not run the app directly from the USB drive.
+
+WHAT THE LAB PC NEEDS
+---------------------
+- Windows 10 or 11 and Python 3.11
+- Internet access for the first BioBERT model download, Gemini, and PubMed
+- Enough free disk space for Python packages and the embedding model
+- The Gemini API key that works with this project
+- The local Qdrant index in the project folder
+
+FIRST: COPY THE PROJECT ONTO THE LAB PC
+---------------------------------------
+1. In File Explorer, copy the complete clinical-cdss folder from the USB drive
+   into your Documents folder on the lab PC.
+2. Open Command Prompt (cmd), not PowerShell.
+3. Change to the copied project folder:
+
+   cd /d "%USERPROFILE%\Documents\clinical-cdss"
+
+   If you copied it somewhere else, change the path to that location. The
+   prompt should end with the project folder name, for example:
+
+   C:\Users\Student\Documents\clinical-cdss>
+
+4. Confirm Python 3.11 is available:
+
+   py -3.11 --version
+
+   If Windows says it cannot find Python 3.11, install Python 3.11 from
+   python.org. During setup, enable the Python Launcher option. Then reopen
+   Command Prompt and check again.
+
+CHECK THAT THE LOCAL RAG INDEX CAME WITH THE FOLDER
+-------------------------------------------------
+From the project folder, run:
+
+   dir data\raw\qdrant_index\collection
+
+The output should include folders named biomedical and textbooks. If the path
+is missing or those collections are absent, stop here: the local textbook RAG
+index was not copied. Do not delete or rebuild the index. You can instead use
+the already-created Qdrant Cloud index by following the CLOUD OPTION below.
+
+INSTALL THE PROJECT DEPENDENCIES (ONE TIME ON THIS PC)
+------------------------------------------------------
+Run these commands in Command Prompt from the project folder:
+
+   py -3.11 -m venv .venv
+   call .venv\Scripts\activate.bat
+   python -m pip install --upgrade pip
+   pip install -r requirements.txt
+
+The install can take several minutes because PyTorch and the ML packages are
+large. Keep the Command Prompt open. If installation fails because the lab
+network blocks package downloads, ask the lab administrator to allow access to
+Python package downloads; do not copy a virtual environment from another PC.
+
+SET UP THE API KEY AND LOCAL QDRANT MODE
+---------------------------------------
+The project reads settings from a private .env file in the project folder.
+Do not upload this file to GitHub or share it publicly.
+
+If this copied folder already has a .env file, open it:
+
+   notepad .env
+
+Keep the working GEMINI_API_KEY and GEMINI_MODEL values. For local Qdrant mode,
+make sure the following settings are blank:
+
+   QDRANT_URL=
+   QDRANT_API_KEY=
+
+If .env does not exist, create it from the example and then edit it:
+
+   copy .env.example .env
+   notepad .env
+
+Replace the sample Gemini key with the valid key you are authorized to use.
+The example file may contain an old model name; use the GEMINI_MODEL value
+that works on your current PC. Leave both QDRANT settings blank when using the
+local index. Save and close Notepad.
+
+Do not put the key in a command line, screenshot, presentation, or GitHub.
+If the lab PC is shared, remove the key from .env after the presentation.
+
+START THE WEBSITE
+-----------------
+In Command Prompt, activate the environment if it is not already active:
+
+   call .venv\Scripts\activate.bat
+
+Start the server:
+
+   python web_demo.py
+
+When it starts, open this address in a browser on the same PC:
+
+   http://127.0.0.1:8765
+
+You can project that browser window to the classroom display. Leave the
+Command Prompt window running while you use the site. To stop the website,
+return to that window and press Ctrl+C.
+
+FIRST LIVE ANALYSIS: ALLOW EXTRA TIME
+-------------------------------------
+On its first live analysis, this PC may need to download the BioBERT sentence
+embedding model from Hugging Face. Start the app before the presentation and
+run a case early enough for that download to finish. Gemini and PubMed also
+need internet access during analysis. A live analysis can take a few minutes.
+Use fictional/demo cases only; do not enter a real patient's identifiable
+health information.
+
+The saved benchmark demonstrations can be opened from the website without
+making a live Gemini call. They are a useful fallback if the lab network or API
+is unavailable. Live analysis uses the local Qdrant index only when both
+QDRANT_URL and QDRANT_API_KEY are blank and the local index exists.
+
+CLOUD OPTION (ONLY IF THE LOCAL INDEX IS MISSING)
+------------------------------------------------
+The Qdrant Cloud index is separate from the USB folder. The lab PC needs
+internet access and the cluster credentials. In .env, set:
+
+   QDRANT_URL=the-cluster-url-from-qdrant-cloud
+   QDRANT_API_KEY=the-private-cluster-key
+
+Do not include angle brackets or quotation marks. Keep the key private. The
+BioBERT model still runs on the lab PC, so using cloud Qdrant does not remove
+the need for Python packages, internet access, or enough PC memory.
+
+QUICK TROUBLESHOOTING
+---------------------
+- "No module named ...": Activate .venv, then run:
+    pip install -r requirements.txt
+- Local Qdrant/collection not found: confirm the folder contains
+    data\raw\qdrant_index\collection\biomedical
+    data\raw\qdrant_index\collection\textbooks
+  Also make sure QDRANT_URL and QDRANT_API_KEY are blank for local mode.
+- Port 8765 is already in use: close the other demo server window with Ctrl+C,
+  then run python web_demo.py again.
+- Gemini connection or API error: check internet access and the GEMINI_API_KEY
+  and GEMINI_MODEL settings in .env. Do not post the key in a help message.
+- First live analysis appears slow: allow time for the model download and CPU
+  embedding. The saved benchmark demo can be used while it downloads.
+
+PRESENTATION CHECKLIST
+----------------------
+[ ] The project folder is copied to the lab PC's local drive.
+[ ] The local index has biomedical and textbooks collections.
+[ ] Python 3.11 and dependencies are installed.
+[ ] .env has a working Gemini key and blank QDRANT_URL/QDRANT_API_KEY for local mode.
+[ ] The site opens at http://127.0.0.1:8765.
+[ ] Start the first live analysis early, before the presentation begins.
+[ ] Keep the Command Prompt window open during the demo.

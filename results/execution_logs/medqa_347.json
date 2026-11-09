@@ -1,6 +1,6 @@
 {
  "case_id": "medqa_347",
- "timestamp": "2026-10-26T17:12:02.091743+00:00",
+ "timestamp": "2026-11-08T18:27:59.900608+00:00",
  "question": "A 66-year-old woman presents to her primary care provider with several days of left flank pain radiating to the abdomen and groin. The patient states that she has noticed a pink tinge to her urine as well. Of note, she has not had any fevers, but endorses several months of fatigue and constipation. The patient was previously healthy except for mild untreated hypertension. On exam, her temperature is 98.6°F (37.0°C), blood pressure is 130/84 mmHg, pulse is 76/min, and respirations are 12/min. On further workup, the patient is found to have calcium oxalate nephrolithiasis with hypercalciuria. Blood studies demonstrate increased parathyroid hormone (PTH) and hypercalcemia. Which of the following is the most likely cause?",
  "options": {
   "A": "Primary hyperparathyroidism",
@@ -137,12 +137,12 @@
      "weight": 0.5
     },
     {
-     "pmid": "30576424",
-     "title": "Mild primary hyperparathyroidism-to treat or not to treat?",
-     "abstract": "INTRODUCTION: The presentation of primary hyperparathyroidism (PHPT) has shifted from a disease characterized by renal and skeletal complications to a mild or asymptomatic condition. Modern imaging allows localization of a surgical target in the majority of cases. SOURCES OF DATA: Data were collected from literature searches of online databases including PUBMED, MEDLINE and Cochrane. A narrative review was performed. AREAS OF AGREEMENT: Parathyroidectomy is the only therapy with curative potential with good outcomes and low risk of complications in experienced hands. Current guidelines advocate that surgery is offered in all symptomatic cases and in those who meet criteria depending on age, serum calcium concentration, skeletal and renal parameters. A structured monitoring approach should be offered to those who do not undergo surgery. AREAS OF CONTROVERSY: Thresholds for intervention to improve skeletal and renal outcomes are debatable. In addition, controversy persists over the benefit of surgery for non-skeletal/renal outcomes. GROWING POINTS: The role of medical management of PHPT using agents such as bisphosphonates, denosumab and cinacalcet are discussed. AREAS TIMELY FOR DEVELOPING RESEARCH: In summary, further data on the natural history and effects of treatment of mild and asymptomatic PHPT are required to determine thresholds for surgery. In particular, further investigations of non-skeletal and non-renal parameters, such as neurocognitive quality of life and cardiovascular disease are required. Data on normocalcaemic PHPT are lacking. Large-scale randomized controlled trials would be welcome in these areas, however in view of the cost implications a more pragmatic approach may be to develop collaborative multi-centre registries.",
-     "journal": "British medical bulletin",
-     "year": "2019",
-     "url": "https://pubmed.ncbi.nlm.nih.gov/30576424/",
+     "pmid": "33918966",
+     "title": "Primary Hyperparathyroidism: A Narrative Review of Diagnosis and Medical Management.",
+     "abstract": "Primary hyperparathyroidism (PHPT) is the most common cause of hypercalcemia in the outpatient setting. Symptomatic presentation includes non-specific signs and symptoms of hypercalcemia, skeletal fragility, nephrolithiasis and nephrocalcinosis. The majority of individuals present at an asymptomatic stage following routine biochemical screening, without any signs or symptoms of calcium or parathyroid hormone (PTH) excess or target organ damage. Indications for surgery have recently been revised as published in recent guidelines and consensus statements. Parathyroidectomy is advised in patients younger than 50 years old and in the presence of either significant hypercalcemia, impaired renal function, renal stones or osteoporosis. Surgery is always appropriate in suitable surgical candidates, however, medical management may be considered in those with mild asymptomatic disease, contraindications to surgery or failed previous surgical intervention. We summarized the optimal medical interventions available in the care of PHPT patients not undergoing parathyroidectomy. Calcium and vitamin D intake should be optimized. Antiresorptive therapy may be used for skeletal protection in patients with an increased fracture risk. Cinacalcet, a calcimimetic agent, has been shown to effectively lower serum calcium and PTH levels. The effect of medical treatment on the reduction in fracture risk is unknown and should be the focus of future research.",
+     "journal": "Journal of clinical medicine",
+     "year": "2021",
+     "url": "https://pubmed.ncbi.nlm.nih.gov/33918966/",
      "pubtypes": [
       "Journal Article",
       "Review"
@@ -226,7 +226,7 @@
  "selected": {
   "answer": "A",
   "answer_text": "Primary hyperparathyroidism",
-  "rationale": "The patient's presentation of hypercalcemia with elevated parathyroid hormone (PTH) levels and recurrent nephrolithiasis is classic for primary hyperparathyroidism.",
+  "rationale": "The patient's presentation of hypercalcemia, elevated parathyroid hormone (PTH) levels, hypercalciuria, and nephrolithiasis is characteristic of primary hyperparathyroidism.",
   "mode": "full"
  },
  "confidence": 0.8577,
@@ -238,5 +238,5 @@
  },
  "confidence_method": "0.35*retrieval_similarity + 0.25*evidence_breadth + 0.20*web_support + 0.20*cross_source_agreement (replication heuristic)",
  "n_iterations": 1,
- "latency_s": 78.7
+ "latency_s": 42.62
 }

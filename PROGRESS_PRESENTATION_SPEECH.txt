@@ -1,0 +1,232 @@
+CLINICAL CDSS PROGRESS PRESENTATION
+SPEAKER SCRIPT
+==================================
+
+Estimated speaking time: 8-10 minutes, plus the live website demonstration.
+Suggested split: Mark presents Slides 1-6; Saima presents Slides 7-12; Mark
+briefly presents the references on Slide 13. Adjust the split if needed.
+
+DELIVERY REMINDERS
+------------------
+- Speak naturally; this is a progress report, not a claim of completed clinical
+  validation.
+- Call the output an experimental assessment or candidate hypothesis, not a
+  diagnosis.
+- The displayed confidence is an uncalibrated heuristic score, not a medical
+  probability.
+- If the live API or network fails, use the saved replay on Slide 8 and explain
+  that replay uses a saved audit log rather than making new API calls.
+
+SLIDE 1 - TITLE
+---------------
+MARK:
+Good morning, Ma'am, and good morning everyone. We are Mark Mrinal Mondol and
+Saima Islam. Today we are presenting the progress of our project, an adaptive
+multi-agent clinical decision support prototype.
+
+Our work is based on the 2025 IEEE Access paper by Ogdu, Arslanoglu, and
+Karakose. We are implementing and studying its core workflow as a student
+prototype. We are not claiming to have reproduced every implementation detail
+or created a system ready for patient care. We will explain what we have built,
+what we have evaluated, how our work differs from the paper, and what remains.
+
+SLIDE 2 - WHY THIS PROTOTYPE MATTERS
+------------------------------------
+MARK:
+The motivation is that a fluent answer can still be unsupported. A system may
+miss relevant medical evidence, and a single answer can be difficult to audit.
+If that answer is weak, a single-pass system may not try again.
+
+Our objective is to explore a workflow that structures a free-text case,
+retrieves textbook and biomedical evidence, searches relevant PubMed literature,
+compares the evidence, and revisits weak retrieval before presenting a traceable
+result in a web interface.
+
+The scope is research and education only. It is not a medical device, and it
+must not be used to make decisions about a real patient's care.
+
+SLIDE 3 - THE BASE PAPER
+-----------------------
+MARK:
+The base paper describes five specialized roles, a retrieval and evidence
+fusion workflow, and an optimizer that can request another analysis when the
+result is weak. It reports BioBERT embeddings, Qdrant retrieval, external
+literature, and a web interface that returns an annotated report.
+
+The paper describes a confidence threshold of 0.65 and up to three
+optimization cycles. Our goal is to recreate the main workflow, not to make a
+bit-for-bit replication. As we compare the systems later, we will be explicit
+about the models, data sources, orchestration, and scoring that we adapted.
+
+SLIDE 4 - FROM INPUT TO RESULT
+-----------------------------
+MARK:
+This diagram shows the main processing sequence. First, the Clarifier takes the
+case text and extracts structured symptoms, duration, concepts, and a retrieval
+query. It runs once before the iterative part.
+
+Next, the RAG Analyzer embeds the query with the BioBERT-based model and searches
+the local Qdrant collections. The Evidence Scanner searches PubMed for related
+abstracts. Clinical Fusion compares the retrieved evidence, identifies support
+or conflicts, and calculates our experimental heuristic score.
+
+If the score meets the threshold, the pipeline prepares its final response and
+evidence report. If the score is below threshold and cycles remain, the
+Optimizer refines the retrieval focus and sends the case through retrieval,
+PubMed search, and fusion again. The final response is generated after that
+loop. This score is a research heuristic; it is not a probability that an
+assessment is correct.
+
+SLIDE 5 - WHAT THE FIVE ROLES DO
+-------------------------------
+MARK:
+The five agents are five software roles in the pipeline. The Clarifier
+structures the input. The RAG Analyzer retrieves passages and proposes
+passage-linked candidate hypotheses. The Evidence Scanner searches PubMed.
+Clinical Fusion compares the supporting and conflicting information. The
+Adaptive Optimizer changes the query or focus when the score is low.
+
+An important implementation detail is that we use one configured Gemini model
+across these roles. Python code explicitly decides which role runs next and
+passes each role its prompt and expected output. So these are separate agent
+roles and separate model calls in an orchestrated workflow, but they are not
+five different models or five independent services. That is one of our
+adaptations from the paper.
+
+SLIDE 6 - RETRIEVAL FOUNDATION
+-----------------------------
+MARK:
+For retrieval, our local Qdrant index contains approximately 2,800 PubMed
+abstracts, divided into about 11,244 chunks. It also contains 13,691 passages
+sampled from 18 textbooks in the public MedRAG textbook dataset, with up to 780
+passages sampled per book. Results from the two collections are combined, and
+the default retrieval depth is five passages.
+
+BioBERT converts the query and stored passages into numerical vectors so
+Qdrant can find semantically similar text. BioBERT is the retriever's embedding
+model; it does not generate the clinical response. The response is generated
+by the language model using the pipeline's input and retrieved evidence.
+
+One limitation is important: these PubMed abstracts are research literature,
+not clinical guidelines. MedRAG is a research corpus, not an approved guideline
+set. We are not claiming to use the exact unnamed textbook and guideline list
+from the base paper.
+
+SLIDE 7 - EVALUATION DESIGN
+---------------------------
+SAIMA:
+We prepared fixed samples so that the three evaluation modes receive the same
+questions. MedQA is an exam-style multiple-choice dataset, and we evaluated 20
+questions from it. PubMedQA and MedBullets samples are prepared and frozen, but
+we have not run those evaluations yet.
+
+Here, freezing means fixing the sampled question IDs before comparing modes.
+The seed of 42 makes that selection repeatable and allows us to audit cases.
+It does not mean that the underlying datasets are ours or that the systems
+were trained on these questions. Live free-text analysis is a separate
+prototype demonstration, not part of the 20-question benchmark result.
+
+SLIDE 8 - WEBSITE DEMONSTRATION
+-------------------------------
+SAIMA:
+The website accepts free-text input and shows a structured case summary, the
+retrieved passages, candidate hypotheses, PubMed records, the iteration trace,
+the stop reason, the final response, and source information.
+
+We prepared two cases to show different paths. In medqa_347, one iteration
+reaches the configured threshold. In medqa_107, the first cycle has a low score,
+the optimizer refines the query, and the second cycle meets the threshold.
+
+There are two ways to show these cases. A live run calls Gemini and PubMed and
+saves an audit log. A replay reads an existing log and makes no API calls. If
+we use replay in the presentation, we will say so clearly. Any displayed
+hypothesis is a research candidate, not a diagnosis.
+
+[If showing the website: enter or select the prepared case, click Analyze or
+open the saved replay, then point out the structured summary, iteration trace,
+retrieved evidence, stop reason, score, and sources. Keep the explanation brief.]
+
+SLIDE 9 - PRELIMINARY RESULTS
+-----------------------------
+SAIMA:
+On the same 20 fixed MedQA questions, the baseline language model answered 17
+correctly, or 85 percent. RAG-only also answered 17 correctly, or 85 percent.
+The full pipeline answered 18 correctly, or 90 percent.
+
+That is one additional correct answer for the full pipeline on this small
+sample. It is an initial benchmark result, not proof that the full system is
+statistically superior. We have not measured clinical outcomes or calibrated
+the confidence score. We need more cases and further analysis before making
+stronger claims.
+
+SLIDE 10 - PAPER VERSUS OUR IMPLEMENTATION
+-----------------------------------------
+SAIMA:
+This table summarizes the main adaptations. The paper describes multiple
+models and CrewAI orchestration; our prototype uses one Gemini model with
+explicit Python orchestration. The paper refers to textbooks, guidelines, and
+literature; our retrieval uses a sampled MedRAG textbook collection and PubMed.
+
+The paper includes terminology mapping, while our Clarifier structures fields
+without SNOMED or ICD mapping. For external literature, we use PubMed
+E-utilities rather than broader web intelligence. We use our own uncalibrated
+heuristic score rather than claiming to reproduce a validated or exactly
+matching paper score.
+
+The shared core is the named workflow: BioBERT-based retrieval with Qdrant,
+five functional roles, evidence fusion, and adaptive refinement. This is a
+core-workflow recreation with documented differences, not an exact replication.
+
+SLIDE 11 - LIMITATIONS AND NEXT WORK
+-----------------------------------
+SAIMA:
+Our main limitations are the small evaluation set, one shared language model,
+an uncalibrated score, no clinician review, and no clinical validation. We also
+do not exactly recreate the paper's complete corpus or broader web search, and
+live retrieval and model outputs can vary.
+
+Our next steps are to run PubMedQA and MedBullets, expand MedQA, report
+uncertainty, evaluate retrieval quality and grounding, review source quality
+and score calibration, and add expert review or terminology mapping if
+feasible. Our immediate priority is broader evaluation and careful error
+analysis, not clinical deployment.
+
+SLIDE 12 - CONCLUSION
+--------------------
+SAIMA:
+To conclude, we have a working research prototype with a web interface and an
+end-to-end workflow connecting case structuring, retrieval, literature search,
+evidence comparison, and refinement. Our first MedQA comparison is 85 percent
+for baseline, 85 percent for RAG-only, and 90 percent for the full pipeline.
+
+These are preliminary results on 20 questions. The implementation differences
+and limitations are part of the result, and we have stated them explicitly.
+Our next step is to broaden and strengthen the evaluation. Thank you. We are
+happy to answer questions.
+
+SLIDE 13 - REFERENCES
+---------------------
+MARK:
+These are the main references behind the work: the 2025 IEEE Access paper
+that provides our architectural reference, the MedRAG benchmark and corpus
+paper, PubMedQA, and the MedQA dataset paper. The full citations are included
+on the slide. Thank you.
+
+PRESENTER-ONLY ACCURACY NOTES
+============================
+1. The saved evaluation report says the MedQA run used max_iters = 2. The
+   paper's limit is up to 3 cycles, and the current project default is 3. If
+   asked about this, say the benchmark run used a two-cycle cap while the
+   current prototype default follows the three-cycle cap. Do not imply every
+   evaluation used three cycles.
+2. The model is shared across agent roles. Describe the system as Python
+   orchestration of five specialized roles using one configured Gemini model.
+   Do not claim five separate LLMs.
+3. The 0.65 score is a heuristic threshold, not a calibrated probability or
+   validated diagnostic confidence.
+4. PubMedQA and MedBullets are frozen/prepared but not evaluated; do not quote
+   results for them.
+5. The 90% result is 18/20. Do not call it statistically significant or proof
+   of clinical benefit.
+6. The saved demonstrations are replays. Only call a demonstration "live" if
+   it is making new Gemini/PubMed calls during the presentation.

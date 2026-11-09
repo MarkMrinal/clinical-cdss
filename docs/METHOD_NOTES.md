@@ -69,6 +69,12 @@ These are deviations, not hidden knobs. They are printed in every audit log unde
 
 ## Reproducibility
 
+- **Retrieval backend:** the reported evaluation ran on the **local** Qdrant index
+  (`data/raw/qdrant_index`, 24,935 vectors). A later deployment-preparation change put a
+  Qdrant Cloud URL in `.env`; that cluster became unreachable, so on 2026-11-09 the two
+  `QDRANT_*` lines were blanked (with approval) to restore local mode — the same backend
+  the published numbers came from. The evaluation files predate the cloud change, so no
+  result was affected.
 - `results/llm_cache/<sha256>.json` stores model, prompt and response for every call.
   Reruns hit the cache, so the demo is fast and the numbers do not drift.
   **Latency caveat:** cached reruns are much faster than the original run. The

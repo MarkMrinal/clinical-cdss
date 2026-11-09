@@ -28,6 +28,23 @@ DOI 10.1109/ACCESS.2025.3613340
 | Evaluation harness (baseline / RAG / full) | done | `evaluation/run_eval.py` |
 | 20-question MedQA evaluation | done | baseline 85%, RAG 85%, full 90%; 0 errors |
 | Qdrant client concurrency fix + stress test | done | 8 threads / 16 calls, 0 failures, counts unchanged |
+| Local web demo (live + saved replay) | done | `web_demo.py`, `web/index.html`, port 8765 |
+| Presentation materials (12 slides + speech + Q&A) | done | `PROGRESS_PRESENTATION_*.txt`, `PRESENTATION_QA.txt` |
+| Lab PC setup guide | done | `LAB_PC_DEMO_SETUP.txt` |
+| README rewritten as canonical overview | done | 21 sections incl. implemented/tested/evaluated taxonomy |
+| Qdrant Cloud `.env` incident → local mode restored | done | 2026-11-09; both demos verified after the fix |
+
+### Post-milestone notes (after 27 Oct)
+
+- A web demo (`web_demo.py`) and Render-deployment preparation were added, including an
+  optional Qdrant Cloud backend.
+- On 2026-11-09 the `.env` Qdrant Cloud URL was found unreachable (TLS reset), which made
+  live retrieval return 0 passages. With approval the two `QDRANT_*` lines were blanked,
+  restoring the local index used by the published evaluation. Both demos were re-verified
+  afterwards (`medqa_347`: A / 0.8577 / 1 iter; `medqa_107`: 0.4499 → 0.8277 / 2 iters).
+- Two slide decks exist: `docs/SLIDES.md` (7-slide milestone deck, 26 Oct) and
+  `PROGRESS_PRESENTATION_SLIDES.txt` (12-slide progress deck with speech + Q&A).
+  They report the same numbers.
 
 ## Measured results
 

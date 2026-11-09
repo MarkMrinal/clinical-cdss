@@ -92,7 +92,7 @@ own module, prompt, and JSON output contract.
 |---|---|---|---|---|
 | 1 | Clinical Text Clarifier | `src/clarifier.py` | Structures free text: symptoms, duration, medications, test results, age/sex, key concepts, missing information, and an 8–15 word retrieval query | question → clinical JSON |
 | 2 | Symptom RAG Analyzer | `src/rag_analyzer.py` | Embeds the query, retrieves top-5 passages, proposes ≤3 hypotheses; **a hypothesis without a cited passage is dropped** | clinical JSON → passages + hypotheses + uncertainties |
-| 3 | Evidence-Based Scanner | `src/evidence_scanner.py` | Builds one PubMed query per hypothesis (rule-based by default, `SCANNER_LLM_QUERY=0`; LLM-built when enabled), fetches records, tags evidence level (meta-analysis > RCT > cohort > case report) | hypotheses → PubMed records |
+| 3 | Evidence-Based Scanner | `src/evidence_scanner.py` | Builds one PubMed query per hypothesis (LLM-built when `SCANNER_LLM_QUERY=1` — current default; rule-based with `SCANNER_LLM_QUERY=0`), fetches records, tags evidence level (meta-analysis > RCT > cohort > case report) | hypotheses → PubMed records |
 | 4 | Clinical Data Fusion | `src/fusion.py` | LLM compares both streams (agreements, disagreements, unsupported claims, gaps, inline `[R#]`/`[W#]` citations) **and** computes confidence from four logged numeric components | both streams → report + confidence |
 | 5 | Adaptive Optimizer | `src/optimizer.py` | Runs only when confidence < τ. Must state *why* evidence was insufficient, then produce a meaningfully different query — never a blind retry | rejected fusion → reason + refined_query |
 
@@ -102,9 +102,35 @@ There is no message bus and no shared memory; each agent call is a stateless Gem
 API request with its role prompt. Responses are cached on disk
 (`results/llm_cache/`), so identical prompts replay instantly and deterministically.
 
-**Why one model:** a single Google AI Studio key was available, so role separation is
-achieved through prompts rather than model selection. The paper used different models
-per role (DeepSeek-R1, Gemini-2.0-Flash, Qwen2-72B, GPT-4o-mini). This is deviation #1.
+**Why one model (initially):** a single Google AI Studio key was available, so role
+separation is achieved through prompts rather than model selection. The paper used
+different models per role (DeepSeek-R1, Gemini-2.0-Flash, Qwen2-72B, GPT-4o-mini).
+This is deviation #1.
+
+**Per-agent model configuration (replication Phase 2):** every stage resolves its own
+`provider` + `model` from `config.AGENT_CONFIG` (`src/config.py`), defaulting to the
+shared Gemini model. Any agent can be redirected to a different provider later without
+code changes, for example in `.env`:
+
+```powershell
+RAG_ANALYZER_PROVIDER=groq          # only this agent changes
+RAG_ANALYZER_MODEL=llama-3.3-70b-versatile
+GROQ_API_KEY=...                    # keys only in .env, never committed
+```
+
+- Agents: `CLARIFIER`, `RAG_ANALYZER`, `EVIDENCE_SCANNER`, `FUSION`, `OPTIMIZER`,
+  `SELECT` (the internal final-answer stage). Shared default via `LLM_PROVIDER`.
+- Non-Gemini providers are called through OpenAI-compatible chat endpoints
+  (openai, groq, openrouter, together, mistral, deepseek, xai, cerebras, perplexity —
+  or any other name plus `<PROVIDER>_BASE_URL`).
+- If a provider fails (missing key, auth error, timeout, unknown model), that agent
+  **automatically falls back to Gemini** and the reason is logged — one
+  `GEMINI_API_KEY` is always enough to run the whole system. Five providers are
+  never required.
+- Every execution log now records **`model_trace`**: one entry per LLM call with the
+  agent, requested vs. actually executed provider/model, cache-hit status, fallback
+  flag + reason, and duration. `parameters.agent_config` records the configuration
+  a run started with.
 
 ## 5. Biomedical RAG implementation
 
@@ -231,7 +257,7 @@ confidence = 0.35 × retrieval_similarity      (best BioBERT cosine of returned 
 
 | Category | Items |
 |---|---|
-| **Implemented** (exists in code) | Five agents + pipeline loop; BioBERT/Qdrant dual-collection RRF retrieval with 3-level fallback; PubMed scanner with evidence levels; confidence heuristic with logged components; optimizer re-query; CLI + local web demo (live analysis and saved replay); audit logging; LLM disk cache; evaluation harness; benchmark sampler |
+| **Implemented** (exists in code) | Five agents + pipeline loop; BioBERT/Qdrant dual-collection RRF retrieval with 3-level fallback; PubMed scanner with evidence levels; confidence heuristic with logged components; optimizer re-query; CLI + local web demo (live analysis and saved replay); audit logging; LLM disk cache; evaluation harness; benchmark sampler; per-agent provider/model configuration with automatic Gemini fallback and per-agent `model_trace` logging |
 | **Tested** (verified technically) | End-to-end demos `medqa_347` and `medqa_107`; Qdrant concurrency stress test (8 threads / 16 calls, 0 failures, counts unchanged); retrieval smoke tests; JSON parsing/LLM retry paths; gold-answer isolation; demo replay viewer |
 | **Evaluated** (measured experimentally) | MedQA, 20 questions × 3 configurations (results in §11) |
 | **Not yet evaluated** | PubMedQA (50 frozen) and MedBullets (50 frozen) — prepared but **no results**; free-text θ = 0.80 scoring path (implemented, never exercised on a benchmark); 50-question MedQA runs |
@@ -241,7 +267,7 @@ confidence = 0.35 × retrieval_similarity      (best BioBERT cosine of returned 
 
 | Paper | This repo | Status |
 |---|---|---|
-| 5 different LLMs for the 5 roles | one Gemini model, role-specific prompts | **deviation** (single API key) |
+| 5 different LLMs for the 5 roles | one shared Gemini model by default; per-agent provider/model overrides via `.env`, Gemini fallback, per-call `model_trace` (replication Phase 2) | **deviation** — architecture ready for multi-model, one key still suffices |
 | Gemini-2.0-Flash | `gemini-flash-lite-latest` | **forced** — 2.0/2.5 retired, 3.8-flash 503/timeouts; only reliable model on our key |
 | CrewAI orchestration | explicit Python pipeline | **deviation** (transparent, testable) |
 | Serper + Scholar + NICE + 1,000 PDFs | PubMed E-utilities + 18 MedRAG textbooks | **deviation** (free, citable) |

@@ -108,7 +108,8 @@ def fuse(
             clinical=json.dumps(clinical, ensure_ascii=False),
             rag=_fmt_rag(rag),
             web=_fmt_web(web),
-        )
+        ),
+        agent="fusion",
     )
 
     hypotheses = rag.get("hypotheses", [])

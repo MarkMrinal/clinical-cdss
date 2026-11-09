@@ -81,7 +81,12 @@ These are deviations, not hidden knobs. They are printed in every audit log unde
   latency figures on the results slide come from the first, uncached evaluation
   (baseline 28.8 s/case, full 144.1 s/case); do not quote rerun timings as deployment
   latency.
-- `results/execution_logs/<case>.json` stores the full trace for single cases.
+- `results/execution_logs/<case>.json` stores the full trace for single cases. Since
+  replication Phase 2 (2026-11-09) it also records `model_trace` — one entry per LLM
+  call with the agent, requested vs. actually executed provider/model, cache-hit flag,
+  fallback flag + reason, and duration — plus `parameters.agent_config`. The two saved
+  demo logs (`medqa_107`, `medqa_347`) predate Phase 2 and therefore have no
+  `model_trace`.
 - `results/eval_medqa_<stamp>.csv` stores one row per (question, mode), including failures.
 - `scripts/summarize_eval.py` rebuilds the slide table and the paired comparison.
 
@@ -95,7 +100,10 @@ These are deviations, not hidden knobs. They are printed in every audit log unde
    in four logged components and is not calibrated; a confidence of 0.66 does not mean
    "66% chance correct".
 3. **One model for five roles.** Role separation is prompt-level, not model-level, so
-   errors can correlate across agents.
+   errors can correlate across agents. Since replication Phase 2 the architecture
+   supports per-agent provider/model overrides (`.env`) with automatic Gemini fallback
+   and per-call `model_trace` logging, but all five roles still run the same Gemini
+   model by default (single available key) — so the correlation weakness remains.
 4. **Corpus scale.** 24,935 chunks against the paper's claimed 200k / 18M embeddings;
    retrieval recall is therefore not comparable.
 5. **Free-text scoring is lenient.** PubMedQA/MedBullets numbers under θ = 0.80 should not

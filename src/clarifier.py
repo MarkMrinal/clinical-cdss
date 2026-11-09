@@ -41,7 +41,7 @@ INPUT:
 
 
 def clarify(question: str) -> dict[str, Any]:
-    data = generate_json(PROMPT.format(question=question))
+    data = generate_json(PROMPT.format(question=question), agent="clarifier")
     defaults = {
         "symptoms": [],
         "duration": None,

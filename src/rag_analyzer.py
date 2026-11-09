@@ -57,7 +57,8 @@ def analyze(clinical: dict[str, Any]) -> dict[str, Any]:
         PROMPT.format(
             clinical=json.dumps(clinical, ensure_ascii=False),
             passages=format_passages(passages),
-        )
+        ),
+        agent="rag_analyzer",
     )
 
     hypotheses = []

@@ -72,7 +72,8 @@ def optimize(
             web_queries=json.dumps(
                 [q.get("query") for q in web.get("queries", [])], ensure_ascii=False
             ),
-        )
+        ),
+        agent="optimizer",
     )
     out = data or {}
     return {

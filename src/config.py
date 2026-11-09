@@ -47,5 +47,36 @@ LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0"))
 SAMPLE_SEED = int(os.getenv("SAMPLE_SEED", "42"))
 SAMPLE_N = int(os.getenv("SAMPLE_N", "50"))
 
+# --- Per-agent provider/model configuration (replication Phase 2) -------------
+# The paper assigned four different LLMs to its five agents (DeepSeek-R1,
+# Gemini-2.0-Flash, Qwen2-72B, GPT-4o-mini). We initially run ONE shared Gemini
+# model for all five genuinely distinct agent roles (documented deviation), but
+# every agent can be pointed at a different provider/model independently:
+#
+#   <AGENT>_PROVIDER = openai   (default: gemini, or LLM_PROVIDER if set)
+#   <AGENT>_MODEL    = gpt-4o-mini
+#
+# where <AGENT> is one of: CLARIFIER, RAG_ANALYZER, EVIDENCE_SCANNER, FUSION,
+# OPTIMIZER, SELECT (SELECT is the internal final-answer stage, not a paper agent).
+#
+# API keys NEVER live here: each provider reads "<PROVIDER>_API_KEY" from .env
+# (e.g. GROQ_API_KEY=...). No key is required unless that agent is overridden,
+# and a failing optional provider falls back to Gemini automatically (src/llm.py).
+DEFAULT_PROVIDER = (os.getenv("LLM_PROVIDER", "") or "gemini").strip().lower()
+
+AGENTS = ("clarifier", "rag_analyzer", "evidence_scanner", "fusion", "optimizer", "select")
+
+
+def _agent_setting(agent: str) -> dict:
+    prefix = agent.upper()
+    provider = (os.getenv(f"{prefix}_PROVIDER", "") or DEFAULT_PROVIDER).strip().lower()
+    model = (os.getenv(f"{prefix}_MODEL", "") or "").strip()
+    if not model and provider == "gemini":
+        model = GEMINI_MODEL  # shared default Gemini model
+    return {"provider": provider, "model": model}
+
+
+AGENT_CONFIG: dict[str, dict] = {a: _agent_setting(a) for a in AGENTS}
+
 for _d in (RAW_DIR, SAMPLES_DIR, RESULTS_DIR, LOG_DIR, CACHE_DIR):
     _d.mkdir(parents=True, exist_ok=True)

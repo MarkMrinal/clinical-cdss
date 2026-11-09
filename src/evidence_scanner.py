@@ -39,7 +39,8 @@ def _build_query(condition: str, clinical: dict[str, Any]) -> str:
                     },
                     ensure_ascii=False,
                 ),
-            )
+            ),
+            agent="evidence_scanner",
         )
         q = str((data or {}).get("query", "")).strip()
         if q:

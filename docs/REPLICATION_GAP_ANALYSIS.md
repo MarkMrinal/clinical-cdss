@@ -17,8 +17,8 @@
 | # | Requirement | Class |
 |---|---|---|
 | G-01 | Five-agent architecture & information flow | FULLY IMPLEMENTED |
-| G-02 | Original model assignments (4 LLMs) + per-agent model config | PARTIALLY IMPLEMENTED |
-| G-03 | CrewAI orchestration | NOT IMPLEMENTED (behavioral equivalent in place) |
+| G-02 | Original model assignments (4 LLMs) + per-agent model config | PARTIALLY IMPLEMENTED (per-agent override architecture ✅ done in Phase 2; the paper's 4-model lineup intentionally not used — documented deviation) |
+| G-03 | CrewAI orchestration | NOT IMPLEMENTED (behavioral equivalent in place; **decision confirmed 2026-11-09: keep Python orchestration**, documented deviation) |
 | G-04 | Clinical text processing (normalization → NER → association) | PARTIALLY IMPLEMENTED |
 | G-05 | SNOMED CT / ICD-10 mapping | NOT IMPLEMENTED |
 | G-06 | Biomedical corpus construction (1,000 PDFs, OCR, filters) | PARTIALLY IMPLEMENTED / exact corpus CANNOT BE REPRODUCED |
@@ -52,13 +52,12 @@
 - **Our code:** `src/clarifier.py`, `src/rag_analyzer.py`, `src/evidence_scanner.py`, `src/fusion.py`, `src/optimizer.py` — five distinct modules, each with its own prompt, input contract and output contract; `src/pipeline.py::run_case` runs them sequentially in exactly Fig. 2 order, with the Optimizer feeding refined queries back into iterations.
 - **Missing:** none. **Files:** — **Deps:** — **Feasible:** done.
 
-### G-02 · Model assignments + per-agent provider/model configuration — **PARTIALLY IMPLEMENTED**
+### G-02 · Model assignments + per-agent provider/model configuration — **PARTIALLY IMPLEMENTED** (architecture ✅ Phase 2, 2026-11-09)
 - **Paper requires (§II intro, §II-A-1…5):** DeepSeek-R1 (Clarifier), Gemini-2.0-Flash (RAG Analyzer + Optimizer), Qwen2-72B (Scanner), GPT-4o-mini (Fusion); no fine-tuning.
-- **Our code:** `src/llm.py` — one Gemini model (`.env: GEMINI_MODEL=gemini-flash-lite-latest`) used by all five agents through a single `generate_json()` entry point (retry, cache, JSON mode). `src/config.py:43` holds the single `GEMINI_MODEL`.
-- **Missing (required by project §3):** per-agent override architecture: `AGENT_MODELS = {clarifier: {provider, model}, …}` in config/.env; provider abstraction (currently Gemini REST only, `llm.py:78`); graceful fallback to the shared Gemini default when an optional provider fails; **logging which model actually executed each agent** (cache entries store `model`, but pipeline logs only one global model — `pipeline.py:94`).
-- **Files to modify:** `src/config.py`, `src/llm.py`, all 5 agent modules (pass their agent name/model), `src/pipeline.py` (log per-agent model), `.env.example`.
-- **External deps:** none new (Gemini REST is direct `requests`). Other providers later need their own keys **in `.env` only**.
-- **Feasible:** yes. This is a **deviation from the paper** (one model, five roles) — documented honestly everywhere.
+- **Our code:** `src/llm.py` + `src/config.py` — **Phase 2 delivered the full override architecture:** `AGENT_CONFIG` (per-agent `<AGENT>_PROVIDER`/`<AGENT>_MODEL` in `.env`, shared `LLM_PROVIDER`/Gemini default); provider dispatch (native Gemini + OpenAI-compatible adapter for openai/groq/openrouter/together/mistral/deepseek/xai/cerebras/perplexity or any name + `<PROVIDER>_BASE_URL`); **automatic fallback to the Gemini chain** on any provider failure with the reason logged; per-call thread-local **`model_trace`** recorded in every `run_case` log (`model_trace` + `parameters.agent_config`). All five agent modules and `pipeline._select` tag their calls with `agent=...`. Cache key format unchanged → existing cache hits preserved. `.env.example` documents the overrides (commented, no real keys).
+- **Still deviating (intentional):** all five roles run on one Gemini model by default (`gemini-flash-lite-latest`) because only one reliable key is available; the paper's four-model lineup is not used. The architecture allows a later switch per agent without code changes. **Never require five providers:** a missing/failing optional provider always falls back to Gemini.
+- **Missing:** nothing for the project's Phase-2 requirement. **Files:** done (`config.py`, `llm.py`, 5 agents, `pipeline.py`, `.env.example`). **External deps:** none new.
+- **Tests (2026-11-09):** config smoke ✓, broken-provider→Gemini fallback trace ✓, cached full `run_case` model_trace ✓, scanner tag ✓, demo replay ✓, `py_compile` ✓.
 
 ### G-03 · CrewAI orchestration — **NOT IMPLEMENTED** (behavioral equivalent in place)
 - **Paper requires (§II-A):** CrewAI framework; "Agent, Crew, Process, Task" modules; sequential process + dynamic feedback loops.
@@ -240,11 +239,11 @@
 | **8** | Web report: aggregate sources + "sources of variation", per-hypothesis High/Mod/Low tiers (Fig. 6), keep prototype labeling | `web_demo.py`, `web/index.html`, `pipeline.py` | none | manual demo + saved-case replay |
 | **9** | Final: README rewrite, `REPLICATION_PROGRESS.md` final status, deviation ledger, honest results table | README, docs | none | docs match code (spot-check) |
 
-## Decisions needed from you (before Phase 2)
+## Decisions (answered 2026-11-09 before Phase 2 — recorded in `REPLICATION_PROGRESS.md`)
 
-1. **Approve the plan as-is?** (Phase 1 done; Phase 2 is the first code-change phase — a git checkpoint commit is included.)
-2. **CrewAI:** keep Python orchestration (recommended, documented deviation) or attempt real CrewAI integration?
-3. **Serper:** register the free tier yourself and add `SERPER_API_KEY=` to `.env`? (Google Scholar: recommended skip — no official API.) NICE: fetch public guideline pages — include or skip?
-4. **SNOMED CT:** deferred (license) with ICD-10-CM implemented now — OK?
-5. **Corpus:** add the public HF Symptom-Disease dataset as a new collection (recommended) — and skip the 1,000-PDF/OCR pipeline (recommended)?
-6. **API spend for Phase 7** (iteration sweep + ablation + 3-dataset runs, ~1,500–2,500 flash-lite calls): approve estimated budget or restrict to a smaller subset?
+1. Plan approved ✅ (git checkpoint `9e507fd` executed before code changes).
+2. CrewAI → **keep Python orchestration**, documented deviation.
+3. External sources → **Serper + NICE** (user registers free Serper key → `.env`); Scholar skipped (no official API).
+4. SNOMED → **deferred (license)**; **ICD-10-CM now** via free NLM API (Phase 3).
+5. Corpus → **add HF Symptom-Disease dataset as a new collection**; skip 1,000-PDF/OCR pipeline (Phase 4).
+6. Phase 7 API budget → **staged: ablation first (~700 calls), review, then separate approval** for the iteration sweep + PubMedQA/MedBullets runs.

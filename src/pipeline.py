@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from . import clarifier, config, evidence_scanner, fusion, optimizer, rag_analyzer
-from .llm import generate_json
+from .llm import generate_json, reset_trace, take_trace
 from .retrieval import search_with_fallback
 from .rag_analyzer import format_passages
 
@@ -52,7 +52,8 @@ def _select(
     if options:
         opts = "\n".join(f"{k}. {v}" for k, v in options.items())
         data = generate_json(
-            SELECT_PROMPT.format(question=question, options=opts, report=report)
+            SELECT_PROMPT.format(question=question, options=opts, report=report),
+            agent="select",
         )
         letter = str((data or {}).get("answer", "")).strip().upper()[:1]
         if letter not in options:
@@ -63,7 +64,7 @@ def _select(
             "rationale": (data or {}).get("rationale", ""),
             "mode": mode,
         }
-    data = generate_json(FREETEXT_PROMPT.format(question=question, report=report))
+    data = generate_json(FREETEXT_PROMPT.format(question=question, report=report), agent="select")
     return {
         "answer": "",
         "answer_text": str((data or {}).get("answer_text", "")).strip(),
@@ -80,6 +81,7 @@ def run_case(
     save_log: bool = True,
 ) -> dict[str, Any]:
     t0 = time.time()
+    reset_trace()  # per-run model-execution trace (thread-local)
     log: dict[str, Any] = {
         "case_id": case_id or f"case_{int(t0)}",
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -92,6 +94,7 @@ def run_case(
             "top_k": config.TOP_K,
             "embed_model": config.EMBED_MODEL,
             "llm": config.GEMINI_MODEL,
+            "agent_config": config.AGENT_CONFIG,
         },
         "iterations": [],
     }
@@ -101,6 +104,7 @@ def run_case(
         log["selected"] = selected
         log["confidence"] = None
         log["n_iterations"] = 0
+        log["model_trace"] = take_trace()
         log["latency_s"] = round(time.time() - t0, 2)
         if save_log:
             _write_log(log)
@@ -115,6 +119,7 @@ def run_case(
         log["selected"] = selected
         log["confidence"] = None
         log["n_iterations"] = 1
+        log["model_trace"] = take_trace()
         log["latency_s"] = round(time.time() - t0, 2)
         if save_log:
             _write_log(log)
@@ -184,6 +189,7 @@ def run_case(
     log["confidence_components"] = (fused or {}).get("confidence_components")
     log["confidence_method"] = (fused or {}).get("confidence_method")
     log["n_iterations"] = len(log["iterations"])
+    log["model_trace"] = take_trace()
     log["latency_s"] = round(time.time() - t0, 2)
     if save_log:
         _write_log(log)

@@ -90,7 +90,7 @@ own module, prompt, and JSON output contract.
 
 | # | Role | Module | What it does | Inputs → outputs |
 |---|---|---|---|---|
-| 1 | Clinical Text Clarifier | `src/clarifier.py` | Structures free text: symptoms, duration, medications, test results, age/sex, key concepts, missing information, and an 8–15 word retrieval query | question → clinical JSON |
+| 1 | Clinical Text Clarifier | `src/clarifier.py` | **Staged pipeline (paper §II-A-1):** deterministic normalisation (NFKC + clinical abbreviation expansion, e.g. HTN→hypertension) → zero-shot NER into the paper's four classes (Symptom/Disease/Medication/Test Result) + association extraction → **ICD-10-CM mapping via the free NLM API** (`src/coding.py`, SNOMED deferred) → structured JSON: symptoms, duration, medications, test results, age/sex, key concepts, missing information, entities, associations, codes, 8–15 word retrieval query | question → clinical JSON + entities + codes |
 | 2 | Symptom RAG Analyzer | `src/rag_analyzer.py` | Embeds the query, retrieves top-5 passages, proposes ≤3 hypotheses; **a hypothesis without a cited passage is dropped** | clinical JSON → passages + hypotheses + uncertainties |
 | 3 | Evidence-Based Scanner | `src/evidence_scanner.py` | Builds one PubMed query per hypothesis (LLM-built when `SCANNER_LLM_QUERY=1` — current default; rule-based with `SCANNER_LLM_QUERY=0`), fetches records, tags evidence level (meta-analysis > RCT > cohort > case report) | hypotheses → PubMed records |
 | 4 | Clinical Data Fusion | `src/fusion.py` | LLM compares both streams (agreements, disagreements, unsupported claims, gaps, inline `[R#]`/`[W#]` citations) **and** computes confidence from four logged numeric components | both streams → report + confidence |
@@ -257,7 +257,7 @@ confidence = 0.35 × retrieval_similarity      (best BioBERT cosine of returned 
 
 | Category | Items |
 |---|---|
-| **Implemented** (exists in code) | Five agents + pipeline loop; BioBERT/Qdrant dual-collection RRF retrieval with 3-level fallback; PubMed scanner with evidence levels; confidence heuristic with logged components; optimizer re-query; CLI + local web demo (live analysis and saved replay); audit logging; LLM disk cache; evaluation harness; benchmark sampler; per-agent provider/model configuration with automatic Gemini fallback and per-agent `model_trace` logging |
+| **Implemented** (exists in code) | Five agents + pipeline loop; staged Clarifier (deterministic normalisation → zero-shot NER/associations → ICD-10-CM via free NLM API); BioBERT/Qdrant dual-collection RRF retrieval with 3-level fallback; PubMed scanner with evidence levels; confidence heuristic with logged components; optimizer re-query; CLI + local web demo (live analysis and saved replay); audit logging; LLM disk cache; evaluation harness; benchmark sampler; per-agent provider/model configuration with automatic Gemini fallback and per-agent `model_trace` logging |
 | **Tested** (verified technically) | End-to-end demos `medqa_347` and `medqa_107`; Qdrant concurrency stress test (8 threads / 16 calls, 0 failures, counts unchanged); retrieval smoke tests; JSON parsing/LLM retry paths; gold-answer isolation; demo replay viewer |
 | **Evaluated** (measured experimentally) | MedQA, 20 questions × 3 configurations (results in §11) |
 | **Not yet evaluated** | PubMedQA (50 frozen) and MedBullets (50 frozen) — prepared but **no results**; free-text θ = 0.80 scoring path (implemented, never exercised on a benchmark); 50-question MedQA runs |
@@ -272,7 +272,7 @@ confidence = 0.35 × retrieval_similarity      (best BioBERT cosine of returned 
 | CrewAI orchestration | explicit Python pipeline | **deviation** (transparent, testable) |
 | Serper + Scholar + NICE + 1,000 PDFs | PubMed E-utilities + 18 MedRAG textbooks | **deviation** (free, citable) |
 | Textbooks/guidelines/epidemiological datasets (titles unpublished) | balanced 780/book sample from MedRAG | **deviation** (paper's corpus unreproducible) |
-| SNOMED CT / ICD-10 mapping | LLM extraction only | **not implemented** (licence) |
+| SNOMED CT / ICD-10 mapping | staged Clarifier + **ICD-10-CM via free NLM Clinical Tables API** (real codes only, `matched_on` recorded; SNOMED CT deferred — licence) | **partial** (Phase 3) — never claims codes we did not return |
 | Confidence formula | documented heuristic | **not published in paper** |
 | max 3 feedback cycles | default 3; evaluation used 2 (time budget) | documented |
 | 1,000 PDFs → 200k chunks → 18M embeddings | 24,935 chunks | paper's arithmetic is inconsistent; not treated as a target |

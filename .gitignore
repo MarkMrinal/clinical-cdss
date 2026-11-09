@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 data/raw/qdrant_index/
 data/raw/pubmed_abstracts.jsonl
+data/raw/icd10cm_cache.json
 results/llm_cache/
 results/*
 !results/eval_medqa_20261026_223318.csv

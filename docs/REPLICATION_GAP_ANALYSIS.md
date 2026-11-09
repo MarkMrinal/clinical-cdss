@@ -19,8 +19,8 @@
 | G-01 | Five-agent architecture & information flow | FULLY IMPLEMENTED |
 | G-02 | Original model assignments (4 LLMs) + per-agent model config | PARTIALLY IMPLEMENTED (per-agent override architecture ✅ done in Phase 2; the paper's 4-model lineup intentionally not used — documented deviation) |
 | G-03 | CrewAI orchestration | NOT IMPLEMENTED (behavioral equivalent in place; **decision confirmed 2026-11-09: keep Python orchestration**, documented deviation) |
-| G-04 | Clinical text processing (normalization → NER → association) | PARTIALLY IMPLEMENTED |
-| G-05 | SNOMED CT / ICD-10 mapping | NOT IMPLEMENTED |
+| G-04 | Clinical text processing (normalization → NER → association) | **IMPLEMENTED (Phase 3)** — deterministic normalisation + explicit entities/associations schema (NER & structuring share one zero-shot pass — paper doesn't state call counts) |
+| G-05 | SNOMED CT / ICD-10 mapping | **PARTIALLY IMPLEMENTED (Phase 3)** — ICD-10-CM live via free NLM API (real codes only, `matched_on` recorded); SNOMED CT deferred (licence) |
 | G-06 | Biomedical corpus construction (1,000 PDFs, OCR, filters) | PARTIALLY IMPLEMENTED / exact corpus CANNOT BE REPRODUCED |
 | G-07 | BioBERT embeddings (768-D) | FULLY IMPLEMENTED |
 | G-08 | Chunking & indexing (512/64, 500/80 fallback, page metadata) | PARTIALLY IMPLEMENTED |
@@ -66,21 +66,23 @@
 - **External deps:** `crewai` (heavy transitive dependency tree, version churn).
 - **Feasible:** technically yes, but high regression risk for zero behavioral gain. **Recommendation: keep Python orchestration, document as deviation** (pending user confirmation).
 
-### G-04 · Clinical text processing (staged) — **PARTIALLY IMPLEMENTED**
+### G-04 · Clinical text processing (staged) — **IMPLEMENTED (Phase 3, 2026-11-09)**
 - **Paper requires (§II-A-1):** sequential stages: Text Normalization (noise/abbrev/spelling) → NER with classes *Symptom, Disease, Medication, Test Result* → Association Extraction (entity-to-entity context, e.g. symptom↔anatomical region) → ontology mapping → JSON.
-- **Our code:** `src/clarifier.py` — **one zero-shot LLM call** producing JSON (`symptoms`, `duration`, `severity`, `medications`, `test_results`, `patient_age`, `patient_sex`, `key_concepts`, `missing_information`, `retrieval_query`). Normalization/NER/relation extraction happen implicitly inside that single call; there is no explicit entity list with types and no explicit relation list.
-- **Missing:** explicit staged outputs: `entities[] {text, type ∈ {Symptom,Disease,Medication,Test Result}}` and `associations[] {entity_a, relation, entity_b}` (paper's "numbness ↔ left arm" pattern); a separate normalization step (abbreviation expansion is not done).
-- **Files to modify:** `src/clarifier.py` (schema + staged prompt, or 2–3 sequential calls), consumers of the schema (`rag_analyzer.py`, `evidence_scanner.py`, `fusion.py`, `web/index.html` if displaying).
-- **External deps:** none (LLM-based stages; no spaCy/NLTK needed).
-- **Feasible:** yes. Must not break the existing JSON contract used by downstream agents — extend, don't replace.
+- **Our code (Phase 3):** `src/clarifier.py` now runs the stages explicitly:
+  1. **Normalisation — deterministic** (`normalize_text`): NFKC unicode cleanup, whitespace collapse, ~70 high-precision clinical abbreviation expansions with word boundaries (HTN→hypertension, SOB→shortness of breath, y/o→years old, …). The normalised text is what the model receives and it is stored in `normalized_text`.
+  2. **NER + association extraction — one zero-shot LLM pass** with an explicit staged schema: `entities[] {text, type ∈ {Symptom, Disease, Medication, Test Result}}` (plus an honest `Other` bucket if the model insists on a fifth class) and `associations[] {entity_a, relation, entity_b}` covering the paper's "numbness ↔ left arm" pattern. Outputs are sanitised/validated in code (`_clean_entities`, `_clean_associations`).
+  3. **Terminology mapping** → see G-05.
+  4. **Structured output** — the original JSON contract (`symptoms`, `duration`, `severity`, `medications`, `test_results`, `patient_age`, `patient_sex`, `key_concepts`, `missing_information`, `retrieval_query`) is byte-for-byte preserved; the new fields are additive, so every downstream agent kept working unchanged (verified by the Phase 3 pipeline test).
+- **Deviation (documented):** stages 2 and 4 share the model's single zero-shot pass — the paper never states how many model calls its Clarifier makes, so call count is not falsifiable either way; normalisation and coding are genuinely deterministic stages outside the model.
+- **Files:** `src/clarifier.py` (done). **External deps:** none (no spaCy/NLTK). **Tests:** normalisation unit ✓, entity/association cleaning ✓, staged `clarify()` on a synthetic narrative (9 entities across all four classes, 6 associations) ✓, full-pipeline downstream ✓, disabled-path ✓, demo replay ✓.
 
-### G-05 · SNOMED CT / ICD-10 mapping — **NOT IMPLEMENTED**
+### G-05 · SNOMED CT / ICD-10 mapping — **PARTIALLY IMPLEMENTED (Phase 3: ICD-10-CM live; SNOMED deferred)**
 - **Paper requires (§II-A-1):** map every identified clinical concept to SNOMED CT or ICD-10 codes. No method/version disclosed.
-- **Our code:** `src/clarifier.py:3-6` explicitly documents this as a known deviation (no coding at all).
-- **Missing:** terminology-mapping stage producing real codes with real code-system lookups.
-- **Files to modify:** new `src/coding.py` + integration in `clarifier.py`; schema gains `codes[] {text, system, code}`.
-- **External deps / licensing:** **ICD-10-CM** — free, no key: NLM Clinical Tables API (`https://clinicaltables.nlm.nih.gov/api/icd10cm/v3/search`) or offline CSV → feasible now. **SNOMED CT** — license/membership required for most use → **ask user; defer** unless a free edition is acceptable.
-- **Feasible:** ICD-10 yes; SNOMED blocked on licensing. **Honesty rule: we claim terminology mapping only when real codes are returned.**
+- **Our code (Phase 3):** new `src/coding.py` maps Disease/Symptom entities to **real ICD-10-CM codes** through the free NLM Clinical Tables API (`https://clinicaltables.nlm.nih.gov/api/icd10cm/v3/search`, `sf=code,name`, no key): per-case disk cache, 0.2 s throttle, per-case query budget (`ICD10_MAX_QUERIES`, default 8), local re-rank (description-starts-with → token overlap → shorter description) plus progressive token fallback so "community acquired pneumonia" resolves to **J18.9 with `matched_on: "pneumonia"` recorded transparently**. Every code entry carries `system: "ICD-10-CM"` and is only emitted if NLM actually returned it. Medication/Test Result entities are listed in `unmapped_concepts` with the honest reason that ICD-10-CM does not code drugs/tests; `coding_status` ∈ {ok, degraded, disabled}. `ICD10_ENABLED=0` disables the API cleanly. SNOMED CT is never claimed.
+- **Missing:** SNOMED CT mapping (licence/membership required → deferred by decision 2026-11-09). Medication coding would need RxNorm, test coding LOINC — both free via NLM but out of the paper's stated scope ("SNOMED CT or ICD-10").
+- **Files:** `src/coding.py` (new), `src/clarifier.py`, `src/config.py` (`ICD10_ENABLED`, `ICD10_MAX_QUERIES`), `.env.example`, `.gitignore` (cache file).
+- **External deps / licensing:** NLM API — free, no key, no cost. **SNOMED CT** — license/membership required → stays deferred.
+- **Honesty rule kept: we claim terminology mapping only for codes actually returned.** Tests: exact match (R06.02) ✓, fallback match (J18.9) ✓, no-match and budget reasons ✓, disabled path ✓, full pipeline retains codes ✓.
 
 ### G-06 · Biomedical corpus construction — **PARTIALLY IMPLEMENTED** (exact corpus **CANNOT BE REPRODUCED**)
 - **Paper requires (§II-B-1, Fig. 3):** >15-keyword queries + study filters + ~20 excluded topics → ≤1,000 parallel PDF downloads (relevance-ranked, Entrez history) → PyMuPDF extraction (65 pg/s) → 28% OCR + ICU normalization → regex section stripping → segmentation → cleaning → embedding → Qdrant; plus HF Symptom-Disease Dataset [30]; claims 200k chunks / 18M embeddings / 2.1 GB / 38 min (and separately "889 articles + 5,630 patient texts").

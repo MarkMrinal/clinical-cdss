@@ -43,6 +43,12 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0"))
 
+# --- Clinical text Clarifier (replication Phase 3) ----------------------------
+# Stage 4 terminology mapping: free NLM ICD-10-CM API (no key). SNOMED CT is
+# deferred (licence) and is never claimed. Set ICD10_ENABLED=0 to skip the API.
+ICD10_ENABLED = os.getenv("ICD10_ENABLED", "1") == "1"
+ICD10_MAX_QUERIES = int(os.getenv("ICD10_MAX_QUERIES", "8"))
+
 # --- Dev / experiment --------------------------------------------------------
 SAMPLE_SEED = int(os.getenv("SAMPLE_SEED", "42"))
 SAMPLE_N = int(os.getenv("SAMPLE_N", "50"))

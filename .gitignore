@@ -6,6 +6,7 @@ data/raw/pubmed_abstracts.jsonl
 data/raw/icd10cm_cache.json
 data/raw/symptom_disease/
 results/llm_cache/
+results/serper_cache/
 results/*
 !results/eval_medqa_20261026_223318.csv
 !results/eval_medqa_20261026_223318.json

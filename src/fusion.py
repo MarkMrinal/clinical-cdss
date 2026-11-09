@@ -37,7 +37,7 @@ STRUCTURED PATIENT DATA:
 STREAM A - BIOMEDICAL RAG (local BioBERT/Qdrant index):
 {rag}
 
-STREAM B - EXTERNAL LITERATURE (PubMed, live search):
+STREAM B - EXTERNAL EVIDENCE (PubMed, NICE guidelines, web search - live):
 {web}
 """
 
@@ -58,11 +58,14 @@ def _fmt_rag(rag: dict[str, Any]) -> str:
 
 def _fmt_web(web: dict[str, Any]) -> str:
     lines = []
-    for r in web.get("records", []):
+    for i, r in enumerate(web.get("records", []), 1):
+        src = r.get("source") or "pubmed"
         lines.append(
-            f"- [W] (level {r.get('evidence_level')}, {r.get('year') or 'n.d.'}) "
+            f"- [W{i}] ({src}, level {r.get('evidence_level')}, {r.get('year') or 'n.d.'}) "
             f"{r.get('title','')} - {_clip(r.get('abstract',''))}"
         )
+    for s in web.get("web_summaries", []) or []:
+        lines.append(f"- [summary] {s.get('condition','')}: {s.get('summary','')}")
     return "\n".join(lines) or "(no external evidence retrieved)"
 
 

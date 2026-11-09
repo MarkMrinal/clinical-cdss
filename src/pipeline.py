@@ -148,6 +148,11 @@ def run_case(
                 "hypotheses": [h.get("condition") for h in rag.get("hypotheses", [])],
                 "n_web_records": len(web.get("records", [])),
                 "web_records": web.get("records", []),
+                # Phase 5 audit fields: which sources answered, why any failed,
+                # and the derived per-hypothesis web summaries
+                "web_sources": web.get("sources", {}),
+                "web_summaries": web.get("web_summaries", []),
+                "search_failures": web.get("search_failures", []),
                 "web_queries": [q.get("query") for q in web.get("queries", [])],
                 "confidence": fused["confidence"],
                 "confidence_components": fused["confidence_components"],

@@ -23,7 +23,7 @@ exact reproduction of its test sets is impossible.
 |---|---|---|
 | `baseline` | one prompt: question + options → option letter | 1 |
 | `rag` | BioBERT/Qdrant top-5 → one selection prompt | 1 + retrieval |
-| `full` | Clarifier → (RAG Analyzer → PubMed Scanner → Fusion) × iterations → selection | 5–7 per iteration |
+| `full` | Clarifier → (RAG Analyzer → Evidence Scanner → Fusion) × iterations → selection | 5–7 per iteration |
 
 `full` is the paper's configuration. It is not "RAG plus a bigger prompt": the Fusion
 stage explicitly compares two evidence streams, and the Optimizer can rewrite the query
@@ -112,10 +112,19 @@ These are deviations, not hidden knobs. They are printed in every audit log unde
    term boosting and the third collection existed — they are not re-measured here.
 5. **Free-text scoring is lenient.** PubMedQA/MedBullets numbers under θ = 0.80 should not
    be compared with literature that uses exact match or token F1.
-6. **Live evidence is not deterministic.** PubMed records can change between runs, which
-   changes the Fusion prompt. Accuracy was stable across our two runs (18/20), but one
-   case's iteration count and another's confidence changed because the web stream changed.
-   Only the LLM responses are cached; the web search is not.
+6. **Live evidence is not deterministic.** PubMed and NICE records can change between
+   runs, which changes the Fusion prompt. Accuracy was stable across our two runs
+   (18/20), but one case's iteration count and another's confidence changed because the
+   web stream changed. LLM responses are cached; **Serper responses are cached too**
+   since Phase 5 (`results/serper_cache/`), but PubMed and NICE are always live, so a
+   full run is still not bit-reproducible. The historical numbers in §Results predate
+   Phase 5 entirely (their scanner returned PubMed records only).
+8. **Web pages are ranked conservatively.** The paper weights guidelines above case
+   reports but publishes no weights for ordinary web pages, so we place NICE guidance at
+   level 1, PubMed/PMC links at level 3 and every other web page at level 4 (below case
+   reports, because the study design is unverifiable). That is our choice, not the
+   paper's, and it affects only record ordering/display — the confidence heuristic does
+   not read the level.
 7. **Term boosting is an approximation (Phase 4).** Table 2 says boosting is "Active" but
    the paper never publishes the mechanism. `_boost_query()` (append absent priority
    terms, repeat present ones once, skip negations, ≤5 terms / 400 chars) is our reading,

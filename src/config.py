@@ -46,6 +46,19 @@ TERM_BOOST = os.getenv("TERM_BOOST", "1") == "1"
 # Set to 0 if the API is rate-limited: saves up to 3 calls per iteration.
 SCANNER_LLM_QUERY = os.getenv("SCANNER_LLM_QUERY", "1") == "1"
 
+# --- Phase 5: external web evidence (paper Sec. II-A-3) -----------------------
+# The Serper key lives ONLY in .env (never committed, never logged, never echoed).
+# With no key the scanner still runs on PubMed + NICE (both keyless) and records
+# why Serper was skipped - one GEMINI_API_KEY is always enough to run the system.
+SERPER_API_KEY = os.getenv("SERPER_API_KEY", "").strip()
+SERPER_ENABLED = os.getenv("SERPER_ENABLED", "1") == "1" and bool(SERPER_API_KEY)
+# NICE guideline search runs directly against nice.org.uk (no key, no credits).
+NICE_ENABLED = os.getenv("NICE_ENABLED", "1") == "1"
+# One LLM pass turns the returned web pages into per-hypothesis summaries
+# (paper: the scanner "derives text summaries pertinent to each hypothesis").
+SCANNER_WEB_SUMMARY = os.getenv("SCANNER_WEB_SUMMARY", "1") == "1"
+SERPER_CACHE_DIR = RESULTS_DIR / "serper_cache"  # disk cache: reproducible + no credit burn
+
 # --- Models ------------------------------------------------------------------
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 # NOTE: the paper used gemini-2.0-flash. It is retired on current keys (API returns
@@ -94,5 +107,5 @@ def _agent_setting(agent: str) -> dict:
 
 AGENT_CONFIG: dict[str, dict] = {a: _agent_setting(a) for a in AGENTS}
 
-for _d in (RAW_DIR, SAMPLES_DIR, RESULTS_DIR, LOG_DIR, CACHE_DIR):
+for _d in (RAW_DIR, SAMPLES_DIR, RESULTS_DIR, LOG_DIR, CACHE_DIR, SERPER_CACHE_DIR):
     _d.mkdir(parents=True, exist_ok=True)

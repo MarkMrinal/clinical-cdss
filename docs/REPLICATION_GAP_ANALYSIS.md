@@ -27,7 +27,7 @@
 | G-09 | Qdrant cosine retrieval, top-k | FULLY IMPLEMENTED (Phase 4: τ=0.65 enforced) |
 | G-10 | Three-level fallback (Fig. 5 strategies) | **IMPLEMENTED (Phase 4)** — full Fig. 5 ladder + per-rung trace; safety return + per-step timing are ours |
 | G-11 | Medical term boosting | **IMPLEMENTED (Phase 4, APPROXIMATION)** — paper algorithm unpublished; `_boost_query` documented as our interpretation |
-| G-12 | External evidence sources (Serper / Scholar / NICE) | PARTIALLY IMPLEMENTED (PubMed only) |
+| G-12 | External evidence sources (Serper / Scholar / NICE) | **IMPLEMENTED (Phase 5)** — PubMed + **keyless NICE** + **Serper** with per-source failure isolation, source tags and derived web summaries; Google Scholar deliberately skipped (no official API) |
 | G-13 | Evidence classification & weighting | FULLY IMPLEMENTED (for disclosed rules) |
 | G-14 | Clinical fusion (cross-check, conflict, report) | PARTIALLY IMPLEMENTED |
 | G-15 | Confidence formula | CANNOT BE REPRODUCED (ours is a labeled heuristic) |
@@ -125,17 +125,21 @@
 
 ### G-12 · External evidence sources — **PARTIALLY IMPLEMENTED**
 - **Paper requires (§II-A-3):** Serper web-search API → PubMed, Google Scholar, NICE guideline databases; programmatic per-hypothesis queries; proactive continuous scanning.
-- **Our code:** `src/pubmed.py` (NCBI E-utilities esearch/efetch, 0.35 s throttle, never fabricates evidence on failure) used by `src/evidence_scanner.py` (per-hypothesis LLM query when `SCANNER_LLM_QUERY=1`, rule-based condition query otherwise, retry fallback). **On-demand per case, not proactive background scanning.**
-- **Missing:** Serper integration, Google Scholar, NICE guidelines, background refresh.
-- **Files to modify:** new `src/serper.py` (+ `.env` key), `src/evidence_scanner.py` (multi-source fan-out, source labels), `src/config.py`, `.env.example`.
-- **External deps & cost:** **Serper.dev** — free tier (2,500 searches, credit card optional?) → *user must register and put `SERPER_API_KEY=` in `.env` themselves (never in chat)*. **Google Scholar has no official API** — scraping violates ToS → recommend NOT implementing. **NICE** — public website; direct fetch of specific guidance pages is possible without a key (free), scope-limited.
-- **Feasible:** PubMed ✓ (done) · Serper ✓ after user gets free key · NICE ✓ simple fetch, optional · Scholar ✗ (policy risk).
-- **Robustness requirement:** unavailable sources must never crash the pipeline — current `pubmed.search()` already returns `[]` on failure; same pattern must wrap Serper/NICE.
+- **Our code (Phase 5):** three independent clients, all with the same never-raise / never-fabricate contract:
+  - `src/pubmed.py` — NCBI E-utilities esearch/efetch, 0.35 s throttle (existing).
+  - `src/nice.py` — **direct, keyless** `nice.org.uk/search` HTML parse (0.6 s throttle); defensive regex over the `SearchCardList_listItem` / `card__heading` / `card__summary` / `headinglink` markup; every field optional so a NICE redesign yields `nice_no_results_or_layout_changed` instead of a crash.
+  - `src/serper.py` — `google.serper.dev/search`, key from `.env` only (never logged/echoed); 401/402/429 mapped to named reasons; responses disk-cached in `results/serper_cache/` (reproducible, 0 credits on repeat).
+  - `src/evidence_scanner.py` — per-hypothesis fan-out to all three, records tagged `source ∈ {pubmed, nice, web}` + `evidence_level/label/weight/condition/query_used`; `sources` status map + `search_failures` recorded per source in the execution log; **one LLM pass derives per-hypothesis web summaries citing `[W#]`** (paper: *"derives text summaries pertinent to each hypothesis"*; `SCANNER_WEB_SUMMARY=0` disables).
+- **Missing:** Google Scholar (**deliberate**: no official API, scraping violates ToS) and **proactive background refresh** (paper says "continuously scanning"; we scan on demand per case — documented deviation).
+- **Files:** `src/serper.py`, `src/nice.py`, `src/evidence_scanner.py`, `src/fusion.py` (shows source labels + summaries), `src/config.py` (`SERPER_*`, `NICE_ENABLED`, `SCANNER_WEB_SUMMARY`), `.env.example`.
+- **External deps & cost:** **Serper.dev** free tier (2,500 searches) — *user registered and put `SERPER_API_KEY=` in `.env` themselves (never in chat)* ✅; cache keeps repeat runs free. **NICE** — free, no key, no quota observed.
+- **Feasible:** ✅ done — PubMed ✓ · NICE ✓ keyless · Serper ✓ live (verified) · Scholar ✗ (policy).
+- **Robustness requirement:** ✅ met — each source is wrapped in its own try/except; test 6 of the Phase-5 suite throws a simulated Serper outage and confirms PubMed + NICE still return while the failure is recorded.
 
 ### G-13 · Evidence classification and weighting — **FULLY IMPLEMENTED** (for disclosed rules)
 - **Paper requires (§II-A-3):** rank systematic reviews/meta-analyses/guidelines above case reports; no numeric weights disclosed.
-- **Our code:** `src/pubmed.py:91-110` `LEVEL_BY_PUBTYPE` (systematic review/meta-analysis/guideline=1, RCT/review/clinical trial=2, observational=3, case reports=4) + `weight = 1/level` (`evidence_scanner.py:79`), sorted best-first (`:83`). Matches every disclosed ordering rule.
-- **Missing:** nothing disclosable (numeric weights CANNOT BE REPRODUCED — paper gives none). Source-credibility scoring is paper's own future work (§IV).
+- **Our code:** `src/pubmed.py:91-110` `LEVEL_BY_PUBTYPE` (systematic review/meta-analysis/guideline=1, RCT/review/clinical trial=2, observational=3, case reports=4) + `weight = 1/level`, sorted best-first. **Phase 5 extends the same hierarchy to the new sources:** NICE guideline/quality standard/technology appraisal → 1, NICE evidence summary/advice → 2, other NICE → 3 (`src/nice.py::evidence_level`); Serper results linking to PubMed/PMC → 3 (`web_literature`, design unknown), all other web pages → 4 (`web_page`, below case reports because the study design is unverifiable). Matches every disclosed ordering rule.
+- **Missing:** nothing disclosable (numeric weights CANNOT BE REPRODUCED — paper gives none). Our web-page levels are a **documented conservative choice**, not the paper's (it publishes none). Source-credibility scoring is paper's own future work (§IV).
 
 ### G-14 · Clinical fusion — **PARTIALLY IMPLEMENTED**
 - **Paper requires (§II-A-4, §II-C):** cross-validation of RAG vs web streams; conflict-detection protocol; calibrated confidence from RAG similarity + web evidence score + cross-stream concordance; semantic fusion into "best data"; structured report with evidence/source/confidence per diagnosis.

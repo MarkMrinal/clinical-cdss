@@ -183,17 +183,39 @@ answer; the Gemini model does that from the retrieved evidence.
 Question IDs are stable (`medqa_107` always means the same question). Benchmark answer
 keys are used **only** by the scorer — they are never passed into the pipeline.
 
-## 7. PubMed integration (external evidence)
+## 7. External evidence integration (Scanner)
 
-- Client: `src/pubmed.py` — NCBI E-utilities (`esearch` + `efetch`), free, no API key.
-- Polite throttle: one call per 0.35 s (NCBI allows ~3/s unauthenticated).
-- Each record is tagged with an evidence level from its publication types and weighted
-  accordingly; records are sorted strongest-first.
+The paper's Scanner sends **programmatic searches per hypothesis** through "a web
+search API like **Serper**" to PubMed, Google Scholar and settled guideline databases
+like **NICE** (§II-A-3). We implement all of that except Scholar:
+
+| Source | Client | Auth | Evidence level |
+|---|---|---|---|
+| PubMed | `src/pubmed.py` — NCBI E-utilities (`esearch`+`efetch`) | none (free) | from publication types: guideline/meta-analysis 1 … case reports 4 |
+| **NICE guidelines** | `src/nice.py` — direct `nice.org.uk/search` | **none (keyless)** | NICE guideline / quality standard / technology appraisal → 1; evidence summary → 2; other → 3 |
+| **Web (Serper)** | `src/serper.py` — `google.serper.dev/search` | `SERPER_API_KEY` in `.env` | PubMed/PMC link → 3; any other web page → 4 (below case reports, design unverifiable) |
+| Google Scholar | *not implemented* | — | no official API; scraping violates ToS (documented deviation) |
+
+Behaviour:
+
+- **Failure isolation** — each source is wrapped independently: a dead/expired Serper
+  key, a rate limit or a NICE layout change degrades to fewer sources and is recorded
+  in `search_failures` + `sources` (`{pubmed, nice, serper}` status per case). Evidence
+  is never fabricated on failure.
+- **Keyless by default** — PubMed and NICE need no key at all, so the whole system runs
+  with only `GEMINI_API_KEY`; Serper simply reports `disabled_no_key`.
+- **Web summaries** (paper: *"derives text summaries pertinent to each hypothesis"*) —
+  one LLM pass turns the returned NICE/web pages into a 2–3 sentence summary per
+  condition, citing `[W#]` record numbers. `SCANNER_WEB_SUMMARY=0` disables it; if the
+  call fails, the raw snippets are used unchanged.
+- **Caching** — Serper responses are disk-cached in `results/serper_cache/`
+  (gitignored): identical queries cost 0 credits and reruns return the same pages.
+- Polite throttles: PubMed 0.35 s/call, NICE 0.6 s/call, Serper 0.4 s/call.
 - Queries are rule-based by default: the condition name alone, relevance-sorted
   (`SCANNER_LLM_QUERY=0`), with a retry/fallback if nothing is found. Long boolean
   keyword strings return nothing in PubMed — this was a real bug we fixed.
-- The paper used Serper + Google Scholar + NICE guidelines; we use PubMed only
-  (free, citable, stable) — deviation #4.
+- Records are sorted strongest-first and carry `source`, `evidence_level`,
+  `evidence_label`, `weight = 1/level`, `condition` and `query_used`.
 
 ## 8. Confidence-based adaptive optimization
 
@@ -265,11 +287,11 @@ confidence = 0.35 × retrieval_similarity      (best BioBERT cosine of returned 
 
 | Category | Items |
 |---|---|
-| **Implemented** (exists in code) | Five agents + pipeline loop; staged Clarifier (deterministic normalisation → zero-shot NER/associations → ICD-10-CM via free NLM API); BioBERT/Qdrant three-collection RRF retrieval with τ=0.65 evidence threshold, term boosting and the Fig. 5 fallback ladder; PubMed scanner with evidence levels; confidence heuristic with logged components; optimizer re-query; CLI + local web demo (live analysis and saved replay); audit logging; LLM disk cache; evaluation harness; benchmark sampler; per-agent provider/model configuration with automatic Gemini fallback and per-agent `model_trace` logging |
-| **Tested** (verified technically) | End-to-end demos `medqa_347` and `medqa_107`; Qdrant concurrency stress test (8 threads / 16 calls, 0 failures, counts unchanged); retrieval smoke tests; Phase 4 suite (22 checks: boosting rules, threshold ladder, weak-query strategy chain, new corpus, full `run_case`); JSON parsing/LLM retry paths; gold-answer isolation; demo replay viewer |
+| **Implemented** (exists in code) | Five agents + pipeline loop; staged Clarifier (deterministic normalisation → zero-shot NER/associations → ICD-10-CM via free NLM API); BioBERT/Qdrant three-collection RRF retrieval with τ=0.65 evidence threshold, term boosting and the Fig. 5 fallback ladder; **three-source evidence scanner (PubMed + keyless NICE + Serper) with per-source failure isolation, source tagging and derived web summaries**; confidence heuristic with logged components; optimizer re-query; CLI + local web demo (live analysis and saved replay); audit logging; LLM disk cache + Serper response cache; evaluation harness; benchmark sampler; per-agent provider/model configuration with automatic Gemini fallback and per-agent `model_trace` logging |
+| **Tested** (verified technically) | End-to-end demos `medqa_347` and `medqa_107`; Qdrant concurrency stress test (8 threads / 16 calls, 0 failures, counts unchanged); retrieval smoke tests; Phase 4 suite (22 checks); Phase 5 suite (36 checks: Serper live+cache+keyless, NICE keyless parse, three-source scan, outage isolation, web summaries, full `run_case`); JSON parsing/LLM retry paths; gold-answer isolation; demo replay viewer |
 | **Evaluated** (measured experimentally) | MedQA, 20 questions × 3 configurations (results in §11) |
 | **Not yet evaluated** | PubMedQA (50 frozen) and MedBullets (50 frozen) — prepared but **no results**; free-text θ = 0.80 scoring path (implemented, never exercised on a benchmark); 50-question MedQA runs |
-| **Future work** (outside current scope) | Larger evaluation, retrieval-quality metric with stemming, confidence calibration study, two-model role heterogeneity (needs a second API key), SNOMED CT / ICD-10 coding, expert/clinician review, guidelines beyond PubMed |
+| **Future work** (outside current scope) | Larger evaluation, retrieval-quality metric with stemming, confidence calibration study, two-model role heterogeneity (needs a second API key), expert/clinician review, proactive background scanning (paper's "continuous" refresh) |
 
 ## 13. Known deviations from the paper
 
@@ -278,7 +300,7 @@ confidence = 0.35 × retrieval_similarity      (best BioBERT cosine of returned 
 | 5 different LLMs for the 5 roles | one shared Gemini model by default; per-agent provider/model overrides via `.env`, Gemini fallback, per-call `model_trace` (replication Phase 2) | **deviation** — architecture ready for multi-model, one key still suffices |
 | Gemini-2.0-Flash | `gemini-flash-lite-latest` | **forced** — 2.0/2.5 retired, 3.8-flash 503/timeouts; only reliable model on our key |
 | CrewAI orchestration | explicit Python pipeline | **deviation** (transparent, testable) |
-| Serper + Scholar + NICE + 1,000 PDFs | PubMed E-utilities + 18 MedRAG textbooks + the paper's own Symptom-Disease dataset (ref [30]) | **deviation** (free, citable) — Serper/NICE added in Phase 5, PDF/OCR pipeline skipped |
+| Serper + Scholar + NICE + 1,000 PDFs | **Serper web search (key in `.env`) + NICE (keyless, direct) + PubMed E-utilities** + 18 MedRAG textbooks + the paper's own Symptom-Disease dataset (ref [30]) | **partial (Phase 5)** — Google Scholar skipped (no official API, ToS), PDF/OCR pipeline skipped (decision) |
 | Textbooks/guidelines/epidemiological datasets (titles unpublished) | balanced 780/book sample from MedRAG | **deviation** (paper's corpus unreproducible) |
 | Term boosting algorithm (Table 2: "Active", weights unpublished) | documented approximation: append absent priority terms, repeat present ones once, never boost "no …" negations, max 5 terms / 400 chars (`_boost_query`) | **approximation** (Phase 4) — paper gives no formula |
 | SNOMED CT / ICD-10 mapping | staged Clarifier + **ICD-10-CM via free NLM Clinical Tables API** (real codes only, `matched_on` recorded; SNOMED CT deferred — licence) | **partial** (Phase 3) — never claims codes we did not return |
